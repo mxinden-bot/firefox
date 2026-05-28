@@ -6,7 +6,7 @@
 
 use firefox_on_glean::metrics::netwerk as glean;
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 struct DnsInfo {
     start: Instant,
@@ -30,7 +30,7 @@ pub(crate) struct Metrics {
     attempt_count: u32,
     cancelled_count: u32,
     https_record_received: bool,
-    outcome: Option<Outcome>,
+    outcome: Option<(Duration, Outcome)>,
 }
 
 impl Metrics {
@@ -102,22 +102,22 @@ impl Metrics {
 
     pub(crate) fn connection_succeeded(&mut self, id: happy_eyeballs::Id) {
         if let Some(info) = self.conn_infos.remove(&id) {
-            self.outcome = Some(Outcome::Succeeded(info));
+            self.outcome = Some((self.start.elapsed(), Outcome::Succeeded(info)));
         }
     }
 
     pub(crate) fn failed(&mut self) {
-        self.outcome = Some(Outcome::Failed);
+        self.outcome = Some((self.start.elapsed(), Outcome::Failed));
     }
 }
 
 impl Drop for Metrics {
     fn drop(&mut self) {
-        let Some(ref outcome) = self.outcome else {
+        let Some((elapsed, outcome)) = self.outcome.as_ref() else {
             return;
         };
 
-        let elapsed_ms = self.start.elapsed().as_millis() as i64;
+        let elapsed_ms = elapsed.as_millis() as i64;
         glean::happy_eyeballs_connection_establishment_time
             .accumulate_single_sample_signed(elapsed_ms);
 
