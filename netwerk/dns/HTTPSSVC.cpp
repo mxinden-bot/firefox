@@ -286,6 +286,11 @@ NS_IMETHODIMP SVCBRecord::GetHasIPHintAddress(bool* aHasIPHintAddress) {
   return NS_OK;
 }
 
+// Legacy HTTPS-RR / CNAME consistency check for the non-Happy-Eyeballs-v3
+// code path. When network.http.happy_eyeballs_enabled is true this check is
+// handled unconditionally inside the happy-eyeballs crate; this function (and
+// the network.dns.https_rr.check_record_with_cname pref) only take effect on
+// the legacy path.
 static bool CheckRecordIsUsableWithCname(const SVCB& aRecord,
                                          const nsACString& aCname) {
   if (StaticPrefs::network_dns_https_rr_check_record_with_cname() &&

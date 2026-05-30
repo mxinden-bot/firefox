@@ -42,14 +42,10 @@ add_setup(async function setup() {
 
   Services.prefs.setBoolPref("network.dns.port_prefixed_qname_https_rr", false);
 
-  // Happy Eyeballs does not support check CNAME for now.
-  Services.prefs.setBoolPref("network.http.happy_eyeballs_enabled", false);
-
   trr_test_setup();
   registerCleanupFunction(async () => {
     trr_clear_prefs();
     Services.prefs.clearUserPref("network.dns.port_prefixed_qname_https_rr");
-    Services.prefs.clearUserPref("network.http.happy_eyeballs_enabled");
   });
 
   h2Port = Services.env.get("MOZHTTP2_PORT");
@@ -180,7 +176,14 @@ async function do_test_https_rr_records(
 // Test the case that the pref is off and the cname is not the same as the
 // targetName. The expected protocol version being "h3" means that the last
 // svcb record is used.
+//
+// check_record_with_cname only takes effect on the legacy (non-Happy-Eyeballs-v3)
+// path; HE-v3 performs the CNAME check unconditionally, so the pref=off case
+// only exists on the legacy path. Pin this test there. It can be removed once
+// the non-HE-v3 path is gone. The pref is restored at the end of the task so
+// the following tests still exercise HE-v3.
 add_task(async function test_https_rr_with_unmatched_cname() {
+  Services.prefs.setBoolPref("network.http.happy_eyeballs_enabled", false);
   Services.prefs.setBoolPref(
     "network.dns.https_rr.check_record_with_cname",
     false
@@ -194,6 +197,7 @@ add_task(async function test_https_rr_with_unmatched_cname() {
     "test.cname1.com",
     "h3"
   );
+  Services.prefs.clearUserPref("network.http.happy_eyeballs_enabled");
 });
 
 // Test the case that the pref is on and the cname is not the same as the
@@ -232,9 +236,18 @@ add_task(async function test_https_rr_with_matched_cname() {
   );
 });
 
-// Test the case that the pref is on and both records are failed to connect.
-// We can only fallback to "h2" when another pref is on.
+// Test the case that the pref is on and both HTTPS records fail to connect.
+// We can only fall back to plain "h2" when network.dns.echconfig.fallback_to_origin_when_all_failed is on.
+//
+// This test covers ECH failure → origin fallback (not a CNAME mismatch).
+// With Happy Eyeballs v3 the origin fallback after ECH failure is not implemented,
+// so the test is pinned to the legacy (non-HE-v3) code path where
+// echconfig.fallback_to_origin_when_all_failed still applies.
 add_task(async function test_https_rr_with_matched_cname_1() {
+  Services.prefs.setBoolPref("network.http.happy_eyeballs_enabled", false);
+  registerCleanupFunction(() => {
+    Services.prefs.clearUserPref("network.http.happy_eyeballs_enabled");
+  });
   Services.prefs.setBoolPref(
     "network.dns.echconfig.fallback_to_origin_when_all_failed",
     true
