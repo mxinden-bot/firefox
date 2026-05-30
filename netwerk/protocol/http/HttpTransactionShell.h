@@ -153,6 +153,12 @@ class HttpTransactionShell : public nsISupports {
   virtual int64_t GetRequestSize() = 0;
   virtual bool IsHttp3Used() = 0;
 
+  // ALPN token negotiated on the browser->proxy hop ("h3", "h2", "http/1.1"),
+  // or empty if no proxy is in use or the proxy connection has not yet been
+  // assigned. Captured from the underlying connection in SetConnection on the
+  // socket-process side and propagated via IPC.
+  virtual void GetProxyConnectionVersion(nsACString& aVersion) = 0;
+
   // Called to notify that a requested DNS cache entry was refreshed.
   virtual void SetDNSWasRefreshed() = 0;
 
@@ -233,6 +239,7 @@ class HttpTransactionShell : public nsISupports {
   virtual int64_t GetTransferSize() override;                                  \
   virtual int64_t GetRequestSize() override;                                   \
   virtual bool IsHttp3Used() override;                                         \
+  virtual void GetProxyConnectionVersion(nsACString& aVersion) override;       \
   virtual void SetDNSWasRefreshed() override;                                  \
   virtual void DontReuseConnection() override;                                 \
   virtual bool HasStickyConnection() const override;                           \

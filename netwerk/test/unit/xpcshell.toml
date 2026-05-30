@@ -1462,6 +1462,12 @@ skip-if = [
 ["test_proxy_cancel.js"]
 run-sequentially = ["true"] # node server exceptions dont replay well
 
+["test_proxy_connection_version.js"]
+run-sequentially = ["true"] # uses a node http2 proxy
+skip-if = [
+  "os == 'android' && os_version == '14' && arch == 'x86_64'",
+]
+
 ["test_proxy_fast_path.js"]
 
 ["test_proxy_pac.js"]

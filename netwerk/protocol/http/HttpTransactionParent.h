@@ -53,7 +53,8 @@ class HttpTransactionParent final : public PHttpTransactionParent,
       const nsIRequest::TRRMode& aMode, const TRRSkippedReason& aSkipReason,
       const uint32_t& aCaps, const TimeStamp& aOnStartRequestStartTime,
       const HttpConnectionInfoCloneArgs& aArgs,
-      const nsILoadInfo::IPAddressSpace& aTargetIPAddressSpace);
+      const nsILoadInfo::IPAddressSpace& aTargetIPAddressSpace,
+      const nsCString& aProxyConnectionVersion);
   mozilla::ipc::IPCResult RecvOnTransportStatus(
       const nsresult& aStatus, const int64_t& aProgress,
       const int64_t& aProgressMax,
@@ -112,7 +113,8 @@ class HttpTransactionParent final : public PHttpTransactionParent,
       const nsIRequest::TRRMode& aMode, const TRRSkippedReason& aSkipReason,
       const uint32_t& aCaps, const TimeStamp& aOnStartRequestStartTime,
       nsHttpConnectionInfo* aConnInfo,
-      const nsILoadInfo::IPAddressSpace& aTargetIPAddressSpace);
+      const nsILoadInfo::IPAddressSpace& aTargetIPAddressSpace,
+      const nsCString& aProxyConnectionVersion);
   void DoOnDataAvailable(const nsCString& aData, const uint64_t& aOffset,
                          const TimeStamp& aOnDataAvailableStartTime);
   void DoOnStopRequest(
@@ -143,6 +145,7 @@ class HttpTransactionParent final : public PHttpTransactionParent,
   int64_t mTransferSize{0};
   int64_t mRequestSize{0};
   bool mIsHttp3Used = false;
+  nsCString mProxyConnectionVersion;
   bool mProxyConnectFailed{false};
   Atomic<bool, ReleaseAcquire> mCanceled{false};
   Atomic<nsresult, ReleaseAcquire> mStatus{NS_OK};

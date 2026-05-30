@@ -1211,6 +1211,7 @@ HttpChannelParent::OnStartRequest(nsIRequest* aRequest) {
     httpChannelImpl->GetCacheTokenFetchCount(&args.cacheFetchCount());
     httpChannelImpl->GetCacheTokenExpirationTime(&args.cacheExpirationTime());
     httpChannelImpl->GetProtocolVersion(args.protocolVersion());
+    httpChannelImpl->GetProxyConnectionVersion(args.proxyConnectionVersion());
 
     mDataSentToChildProcess = httpChannelImpl->DataSentToChildProcess();
     args.dataFromSocketProcess() = mDataSentToChildProcess;

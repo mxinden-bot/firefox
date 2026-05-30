@@ -56,7 +56,8 @@ parent:
                        TRRSkippedReason trrSkipReason,
                        uint32_t caps,
                        TimeStamp onStartRequestStart,
-                       HttpConnectionInfoCloneArgs connInfoArgs, IPAddressSpace targetIpAddressSpace);
+                       HttpConnectionInfoCloneArgs connInfoArgs, IPAddressSpace targetIpAddressSpace,
+                       nsCString proxyConnectionVersion);
   async OnTransportStatus(nsresult status,
                           int64_t progress,
                           int64_t progressMax,

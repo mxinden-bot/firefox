@@ -539,6 +539,16 @@ void nsHttpTransaction::SetConnection(nsAHttpConnection* conn) {
     mConnection = conn;
     if (mConnection) {
       mIsHttp3Used = mConnection->Version() == HttpVersion::v3_0;
+      if (mConnInfo && mConnInfo->UsingHttpProxy()) {
+        // nsHttpConnection::Version() and HttpConnectionUDP::Version() return
+        // the ALPN negotiated on the actual transport to the proxy (h2/http1.1
+        // for HTTPS CONNECT, h3 for MASQUE). For an HTTPS proxy with an HTTPS
+        // origin, the channel's mSecurityInfo describes the origin TLS layered
+        // inside the tunnel and therefore can't be used to infer the proxy
+        // ALPN; this is the only reliable place to capture it.
+        mProxyConnectionVersion.Assign(
+            nsHttp::GetProtocolVersion(mConnection->Version()));
+      }
       if (mActivated) {
         mConnection->GetSelfAddr(&mSelfAddr);
         mConnection->GetPeerAddr(&mPeerAddr);
@@ -1085,6 +1095,11 @@ int64_t nsHttpTransaction::GetTransferSize() { return mTransferSize; }
 int64_t nsHttpTransaction::GetRequestSize() { return mRequestSize; }
 
 bool nsHttpTransaction::IsHttp3Used() { return mIsHttp3Used; }
+
+void nsHttpTransaction::GetProxyConnectionVersion(nsACString& aVersion) {
+  MutexAutoLock lock(mLock);
+  aVersion.Assign(mProxyConnectionVersion);
+}
 
 bool nsHttpTransaction::Http2Disabled() const {
   return mCaps & NS_HTTP_DISALLOW_SPDY;

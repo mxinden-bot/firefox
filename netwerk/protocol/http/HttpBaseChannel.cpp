@@ -2468,6 +2468,46 @@ HttpBaseChannel::GetProtocolVersion(nsACString& aProtocolVersion) {
   return NS_ERROR_NOT_AVAILABLE;
 }
 
+NS_IMETHODIMP
+HttpBaseChannel::GetProxyConnectionVersion(
+    nsACString& aProxyConnectionVersion) {
+  aProxyConnectionVersion.Truncate();
+  if (!mConnectionInfo) {
+    return NS_OK;
+  }
+
+  // H3 (MASQUE) proxy: the outer transport to the proxy is always HTTP/3.
+  if (mConnectionInfo->IsHttp3ProxyConnection()) {
+    aProxyConnectionVersion.AssignLiteral("h3");
+    return NS_OK;
+  }
+
+  // HTTPS proxy: ALPN to the proxy was negotiated as h2 or http/1.1. When the
+  // origin is plain http, the channel's mSecurityInfo describes the proxy TLS
+  // (see comment on GetProtocolVersion above) so its NPN is the proxy ALPN.
+  // For end-to-end TLS, mSecurityInfo reflects origin TLS; the proxy ALPN is
+  // not surfaced on the channel here and is instead captured on the
+  // transaction (see nsHttpTransaction::SetConnection).
+  if (mConnectionInfo->UsingHttpsProxy()) {
+    if (!mConnectionInfo->EndToEndSSL() && mSecurityInfo) {
+      nsAutoCString npn;
+      if (NS_SUCCEEDED(mSecurityInfo->GetNegotiatedNPN(npn)) &&
+          !npn.IsEmpty()) {
+        aProxyConnectionVersion.Assign(npn);
+      }
+    }
+    return NS_OK;
+  }
+
+  // Plain HTTP proxy: CONNECT is sent over HTTP/1.1 cleartext.
+  if (mConnectionInfo->UsingOnlyHttpProxy()) {
+    aProxyConnectionVersion.AssignLiteral("http/1.1");
+    return NS_OK;
+  }
+
+  return NS_OK;
+}
+
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsIHttpChannelInternal
 //-----------------------------------------------------------------------------

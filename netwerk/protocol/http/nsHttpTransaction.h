@@ -507,6 +507,11 @@ class nsHttpTransaction final : public nsAHttpTransaction,
   Atomic<bool, ReleaseAcquire> mClosed{false};
   Atomic<bool, Relaxed> mIsHttp3Used{false};
 
+  // ALPN token negotiated on the browser->proxy hop, captured from the
+  // connection in SetConnection. Empty when this transaction is not proxied
+  // or no proxy connection has been assigned yet. Protected by mLock.
+  nsCString mProxyConnectionVersion;
+
   // True iff WriteSegments was called while this transaction should be
   // throttled (stop reading) Used to resume read on unblock of reading.  Conn
   // manager is responsible for calling back to resume reading.

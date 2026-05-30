@@ -420,6 +420,7 @@ void HttpChannelChild::OnStartRequest(
   mCacheDisposition = aArgs.cacheDisposition();
   mCacheFetchCount = aArgs.cacheFetchCount();
   mProtocolVersion = aArgs.protocolVersion();
+  mProxyConnectionVersion = aArgs.proxyConnectionVersion();
   mCacheExpirationTime = aArgs.cacheExpirationTime();
   mSelfAddr = aArgs.selfAddr();
   mPeerAddr = aArgs.peerAddr();
@@ -2715,6 +2716,13 @@ HttpChannelChild::UpgradeToSecure() {
 NS_IMETHODIMP
 HttpChannelChild::GetProtocolVersion(nsACString& aProtocolVersion) {
   aProtocolVersion = mProtocolVersion;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::GetProxyConnectionVersion(
+    nsACString& aProxyConnectionVersion) {
+  aProxyConnectionVersion = mProxyConnectionVersion;
   return NS_OK;
 }
 

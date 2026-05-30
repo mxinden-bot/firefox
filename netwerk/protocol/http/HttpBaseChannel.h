@@ -236,6 +236,8 @@ class HttpBaseChannel : public nsHashPropertyBag,
   NS_IMETHOD GetBrowserId(uint64_t* aId) override;
   NS_IMETHOD SetBrowserId(uint64_t aId) override;
   NS_IMETHOD GetIsProxyUsed(bool* aIsProxyUsed) override;
+  NS_IMETHOD GetProxyConnectionVersion(
+      nsACString& aProxyConnectionVersion) override;
 
   using nsIClassifiedChannel::IsThirdPartyTrackingResource;
 

@@ -350,6 +350,10 @@ int64_t HttpTransactionParent::GetRequestSize() { return mRequestSize; }
 
 bool HttpTransactionParent::IsHttp3Used() { return mIsHttp3Used; }
 
+void HttpTransactionParent::GetProxyConnectionVersion(nsACString& aVersion) {
+  aVersion.Assign(mProxyConnectionVersion);
+}
+
 bool HttpTransactionParent::DataSentToChildProcess() {
   return mDataSentToChildProcess;
 }
@@ -444,7 +448,8 @@ mozilla::ipc::IPCResult HttpTransactionParent::RecvOnStartRequest(
     const nsIRequest::TRRMode& aMode, const TRRSkippedReason& aTrrSkipReason,
     const uint32_t& aCaps, const TimeStamp& aOnStartRequestStartTime,
     const HttpConnectionInfoCloneArgs& aArgs,
-    const nsILoadInfo::IPAddressSpace& aTargetIPAddressSpace) {
+    const nsILoadInfo::IPAddressSpace& aTargetIPAddressSpace,
+    const nsCString& aProxyConnectionVersion) {
   RefPtr<nsHttpConnectionInfo> cinfo =
       nsHttpConnectionInfo::DeserializeHttpConnectionInfoCloneArgs(aArgs);
   mEventQ->RunOrEnqueue(MakeUnique<NeckoTargetChannelFunctionEvent>(
@@ -456,14 +461,15 @@ mozilla::ipc::IPCResult HttpTransactionParent::RecvOnStartRequest(
        aDataForSniffer = CopyableTArray{std::move(aDataForSniffer)},
        aAltSvcUsed, aDataToChildProcess, aRestarted, aHTTPSSVCReceivedStage,
        aSupportsHttp3, aMode, aTrrSkipReason, aCaps, aOnStartRequestStartTime,
-       aTargetIPAddressSpace, cinfo{std::move(cinfo)}]() mutable {
+       aTargetIPAddressSpace, cinfo{std::move(cinfo)},
+       aProxyConnectionVersion]() mutable {
         self->DoOnStartRequest(
             aStatus, std::move(aResponseHead), securityInfo,
             aProxyConnectFailed, aTimings, std::move(aProxyConnectResponseHead),
             std::move(aDataForSniffer), aAltSvcUsed, aDataToChildProcess,
             aRestarted, aHTTPSSVCReceivedStage, aSupportsHttp3, aMode,
             aTrrSkipReason, aCaps, aOnStartRequestStartTime, cinfo,
-            aTargetIPAddressSpace);
+            aTargetIPAddressSpace, aProxyConnectionVersion);
       }));
   return IPC_OK();
 }
@@ -498,7 +504,8 @@ void HttpTransactionParent::DoOnStartRequest(
     const nsIRequest::TRRMode& aMode, const TRRSkippedReason& aSkipReason,
     const uint32_t& aCaps, const TimeStamp& aOnStartRequestStartTime,
     nsHttpConnectionInfo* aConnInfo,
-    const nsILoadInfo::IPAddressSpace& aTargetIPAddressSpace) {
+    const nsILoadInfo::IPAddressSpace& aTargetIPAddressSpace,
+    const nsCString& aProxyConnectionVersion) {
   LOG(("HttpTransactionParent::DoOnStartRequest [this=%p aStatus=%" PRIx32
        "]\n",
        this, static_cast<uint32_t>(aStatus)));
@@ -508,6 +515,8 @@ void HttpTransactionParent::DoOnStartRequest(
   }
 
   MOZ_ASSERT(!mOnStartRequestCalled);
+
+  mProxyConnectionVersion = aProxyConnectionVersion;
 
   mStatus = aStatus;
   mDataSentToChildProcess = aDataToChildProcess;

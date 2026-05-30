@@ -98,6 +98,8 @@ class HttpChannelChild final : public PHttpChannelChild,
   NS_IMETHOD TransparentRedirectTo(nsIURI* newURI) override;
   NS_IMETHOD UpgradeToSecure() override;
   NS_IMETHOD GetProtocolVersion(nsACString& aProtocolVersion) override;
+  NS_IMETHOD GetProxyConnectionVersion(
+      nsACString& aProxyConnectionVersion) override;
   void DoDiagnosticAssertWhenOnStopNotCalledOnDestroy() override;
   // nsIHttpChannelInternal
   NS_IMETHOD GetIsAuthChannel(bool* aIsAuthChannel) override;
@@ -304,6 +306,7 @@ class HttpChannelChild final : public PHttpChannelChild,
 
  private:
   nsCString mProtocolVersion;
+  nsCString mProxyConnectionVersion;
 
   RequestHeaderTuples mClientSetRequestHeaders;
   RefPtr<ChannelEventQueue> mEventQ;

@@ -484,6 +484,9 @@ HttpTransactionChild::OnStartRequest(nsIRequest* aRequest) {
   HttpConnectionInfoCloneArgs infoArgs;
   nsHttpConnectionInfo::SerializeHttpConnectionInfo(connInfo, infoArgs);
 
+  nsAutoCString proxyConnectionVersion;
+  mTransaction->GetProxyConnectionVersion(proxyConnectionVersion);
+
   (void)SendOnStartRequest(
       status, std::move(optionalHead), securityInfo,
       mTransaction->ProxyConnectFailed(),
@@ -492,7 +495,7 @@ HttpTransactionChild::OnStartRequest(nsIRequest* aRequest) {
       !!mDataBridgeParent, mTransaction->TakeRestartedState(),
       mTransaction->HTTPSSVCReceivedStage(), mTransaction->GetSupportsHTTP3(),
       mode, reason, mTransaction->Caps(), TimeStamp::Now(), infoArgs,
-      mTransaction->GetTargetIPAddressSpace());
+      mTransaction->GetTargetIPAddressSpace(), proxyConnectionVersion);
   return NS_OK;
 }
 

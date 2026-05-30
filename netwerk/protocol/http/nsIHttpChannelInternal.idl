@@ -500,6 +500,18 @@ interface nsIHttpChannelInternal : nsISupports
     [must_use] readonly attribute boolean isProxyUsed;
 
     /**
+     * ALPN token negotiated on the browser->proxy hop, e.g. "h3", "h2",
+     * "http/1.1". Empty string if the channel is not proxied or the proxy-leg
+     * ALPN could not be determined (currently the case for an HTTPS proxy with
+     * an HTTPS origin, where mSecurityInfo reflects the origin TLS rather than
+     * the proxy TLS).
+     *
+     * Distinct from nsIHttpChannel::protocolVersion, which reports the
+     * end-to-end (origin) protocol carried through the tunnel.
+     */
+    [must_use] readonly attribute ACString proxyConnectionVersion;
+
+    /**
      * Set mWebTransportSessionEventListener.
      */
     [must_use] void setWebTransportSessionEventListener(

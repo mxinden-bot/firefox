@@ -7005,6 +7005,19 @@ NS_IMETHODIMP nsHttpChannel::ConnectionRestartable(bool aRestartable) {
   return NS_OK;
 }
 
+NS_IMETHODIMP nsHttpChannel::GetProxyConnectionVersion(
+    nsACString& aProxyConnectionVersion) {
+  if (mTransaction) {
+    nsAutoCString v;
+    mTransaction->GetProxyConnectionVersion(v);
+    if (!v.IsEmpty()) {
+      aProxyConnectionVersion = v;
+      return NS_OK;
+    }
+  }
+  return HttpBaseChannel::GetProxyConnectionVersion(aProxyConnectionVersion);
+}
+
 //-----------------------------------------------------------------------------
 // nsHttpChannel::nsISupports
 //-----------------------------------------------------------------------------
