@@ -13,7 +13,7 @@
 edition = "2024"
 rust-version = "1.85.0"
 name = "happy-eyeballs"
-version = "0.5.0"
+version = "0.7.0"
 build = false
 autolib = false
 autobins = false
@@ -42,6 +42,10 @@ path = "tests/hostname_resolution.rs"
 [[test]]
 name = "https_records"
 path = "tests/https_records.rs"
+
+[[test]]
+name = "https_rr_cname"
+path = "tests/https_rr_cname.rs"
 
 [[test]]
 name = "network_config"

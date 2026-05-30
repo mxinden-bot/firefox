@@ -114,6 +114,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_a(
     he: *mut HappyEyeballs,
     id: u64,
     addrs: *const ThinVec<NetAddr>,
+    cname: *const nsACString,
 ) -> nsresult {
     let Some(he) = (unsafe { he.as_mut() }) else {
         debug_assert!(false, "unexpected null he pointer");
@@ -125,7 +126,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_a(
         return NS_ERROR_INVALID_ARG;
     };
 
-    he.process_dns_response_a(id, addrs)
+    he.process_dns_response_a(id, addrs, canonical_name(cname))
 }
 
 #[no_mangle]
@@ -133,6 +134,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_aaaa(
     he: *mut HappyEyeballs,
     id: u64,
     addrs: *const ThinVec<NetAddr>,
+    cname: *const nsACString,
 ) -> nsresult {
     let Some(he) = (unsafe { he.as_mut() }) else {
         debug_assert!(false, "unexpected null he pointer");
@@ -144,7 +146,19 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_aaaa(
         return NS_ERROR_INVALID_ARG;
     };
 
-    he.process_dns_response_aaaa(id, addrs)
+    he.process_dns_response_aaaa(id, addrs, canonical_name(cname))
+}
+
+/// Converts an optional FFI canonical-name string into a [`TargetName`].
+///
+/// A null or empty string yields `None`, matching the state machine's "empty
+/// cname => no filtering" behavior.
+fn canonical_name(cname: *const nsACString) -> Option<happy_eyeballs::TargetName> {
+    let cname = unsafe { cname.as_ref() }?;
+    if cname.is_empty() {
+        return None;
+    }
+    Some(happy_eyeballs::TargetName::from(cname.to_utf8().as_ref()))
 }
 
 #[no_mangle]
@@ -219,7 +233,12 @@ pub struct HappyEyeballs {
 }
 
 impl HappyEyeballs {
-    fn process_dns_response_a(&mut self, id: u64, net_addrs: &ThinVec<NetAddr>) -> nsresult {
+    fn process_dns_response_a(
+        &mut self,
+        id: u64,
+        net_addrs: &ThinVec<NetAddr>,
+        cname: Option<happy_eyeballs::TargetName>,
+    ) -> nsresult {
         let id: happy_eyeballs::Id = id.into();
         let mut addrs = Vec::with_capacity(net_addrs.len());
         for na in net_addrs.iter() {
@@ -237,14 +256,19 @@ impl HappyEyeballs {
         self.profiler.dns_response(id, &addrs);
         self.metrics.dns_response(id);
 
-        let result = happy_eyeballs::DnsResult::A(Ok(addrs));
+        let result = happy_eyeballs::DnsResult::A(Ok(addrs), cname);
         let input = happy_eyeballs::Input::DnsResult { id, result };
         self.inner.process_input(input, Instant::now());
 
         NS_OK
     }
 
-    fn process_dns_response_aaaa(&mut self, id: u64, net_addrs: &ThinVec<NetAddr>) -> nsresult {
+    fn process_dns_response_aaaa(
+        &mut self,
+        id: u64,
+        net_addrs: &ThinVec<NetAddr>,
+        cname: Option<happy_eyeballs::TargetName>,
+    ) -> nsresult {
         let id: happy_eyeballs::Id = id.into();
         let mut addrs = Vec::with_capacity(net_addrs.len());
         for na in net_addrs.iter() {
@@ -263,7 +287,7 @@ impl HappyEyeballs {
         self.profiler.dns_response(id, &addrs);
         self.metrics.dns_response(id);
 
-        let result = happy_eyeballs::DnsResult::Aaaa(Ok(addrs));
+        let result = happy_eyeballs::DnsResult::Aaaa(Ok(addrs), cname);
         let input = happy_eyeballs::Input::DnsResult { id, result };
         self.inner.process_input(input, Instant::now());
 
@@ -409,7 +433,7 @@ impl HappyEyeballs {
                 };
                 *ret_event = Output::Timer { duration_ms };
             }
-            Some(happy_eyeballs::Output::AttemptConnection { id, endpoint }) => {
+            Some(happy_eyeballs::Output::AttemptConnection { id, endpoint, .. }) => {
                 self.profiler.connection_attempt_started(id, &endpoint);
                 self.metrics.connection_attempt_started(id);
                 if let Some(ref ech) = endpoint.ech_config {

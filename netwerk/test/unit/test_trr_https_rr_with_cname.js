@@ -42,14 +42,10 @@ add_setup(async function setup() {
 
   Services.prefs.setBoolPref("network.dns.port_prefixed_qname_https_rr", false);
 
-  // Happy Eyeballs does not support check CNAME for now.
-  Services.prefs.setBoolPref("network.http.happy_eyeballs_enabled", false);
-
   trr_test_setup();
   registerCleanupFunction(async () => {
     trr_clear_prefs();
     Services.prefs.clearUserPref("network.dns.port_prefixed_qname_https_rr");
-    Services.prefs.clearUserPref("network.http.happy_eyeballs_enabled");
   });
 
   h2Port = Services.env.get("MOZHTTP2_PORT");
@@ -232,9 +228,18 @@ add_task(async function test_https_rr_with_matched_cname() {
   );
 });
 
-// Test the case that the pref is on and both records are failed to connect.
-// We can only fallback to "h2" when another pref is on.
+// Test the case that the pref is on and both HTTPS records fail to connect.
+// We can only fall back to plain "h2" when network.dns.echconfig.fallback_to_origin_when_all_failed is on.
+//
+// This test covers ECH failure → origin fallback (not a CNAME mismatch).
+// With Happy Eyeballs v3 the origin fallback after ECH failure is not implemented,
+// so the test is pinned to the legacy (non-HE-v3) code path where
+// echconfig.fallback_to_origin_when_all_failed still applies.
 add_task(async function test_https_rr_with_matched_cname_1() {
+  Services.prefs.setBoolPref("network.http.happy_eyeballs_enabled", false);
+  registerCleanupFunction(() => {
+    Services.prefs.clearUserPref("network.http.happy_eyeballs_enabled");
+  });
   Services.prefs.setBoolPref(
     "network.dns.echconfig.fallback_to_origin_when_all_failed",
     true
