@@ -2749,6 +2749,7 @@ name = "gecko_tracing"
 version = "0.1.0"
 dependencies = [
  "error-support",
+ "gecko-profiler",
  "tracing",
  "tracing-subscriber",
  "tracing-support",
