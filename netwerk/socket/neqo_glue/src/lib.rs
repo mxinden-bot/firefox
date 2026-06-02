@@ -628,6 +628,17 @@ impl NeqoHttp3Conn {
             return;
         }
 
+        // Record the QUIC version that ended up being used, once the handshake
+        // completed. After a completed handshake `stats.version` reflects the
+        // version negotiated via compatible version negotiation (RFC 9368).
+        if stats.frame_rx.handshake_done != 0 {
+            let version_label = match stats.version {
+                Version::Version1 => "v1",
+                Version::Version2 => "v2",
+            };
+            glean::http_3_quic_version.get(version_label).add(1);
+        }
+
         for (s, postfix) in [(&stats.frame_tx, "_tx"), (&stats.frame_rx, "_rx")] {
             let add = |label: &str, value: usize| {
                 glean::http_3_quic_frame_count
