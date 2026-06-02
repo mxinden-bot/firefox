@@ -139,6 +139,27 @@ export class Server {
         }),
       ];
     }
+
+    // TODO: debugging only. Always synthesize a MASQUE connect-udp protocol as
+    // the primary when a connect entry exists but no masque entry does,
+    // overriding RS payloads. The template is the RFC 9298 default well-known
+    // URI that the proxy (h2o on Fastly) serves; "target_host"/"target_port"
+    // are expanded by the necko URI-template glue at request time.
+    // serverToProxyInfo uses reduceRight, so the first entry becomes the
+    // outermost/primary proxyInfo.
+    const hasMasque = this.protocols.some(p => p.name === "masque");
+    const connect = this.protocols.find(p => p.name === "connect");
+    if (!hasMasque && connect) {
+      this.protocols.unshift(
+        new MasqueProtocol({
+          name: "masque",
+          host: connect.host,
+          port: connect.port,
+          templateString:
+            "/.well-known/masque/udp/{target_host}/{target_port}/",
+        })
+      );
+    }
   }
 }
 
