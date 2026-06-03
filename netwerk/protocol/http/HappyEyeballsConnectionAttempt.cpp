@@ -419,6 +419,10 @@ HappyEyeballsConnectionAttempt::SetupDnsFlags(
       break;
   }
 
+  // The HTTPS-RR / CNAME consistency check always runs in Happy Eyeballs v3
+  // and needs the canonical name from the origin's address resolution.
+  dnsFlags |= nsIDNSService::RESOLVE_CANONICAL_NAME;
+
   // Deal with IP hints later
   /*if (ent->mConnInfo->HasIPHintAddress()) {
     nsresult rv;
@@ -1513,8 +1517,9 @@ nsresult HappyEyeballsConnectionAttempt::OnARecord(nsIDNSRecord* aRecord,
   nsresult rv;
   if (NS_FAILED(status) || !addrRecord) {
     nsTArray<NetAddr> emptyArray;
-    rv =
-        happy_eyeballs_process_dns_response_a(mHappyEyeballs, aId, &emptyArray);
+    nsAutoCString cname;
+    rv = happy_eyeballs_process_dns_response_a(mHappyEyeballs, aId, &emptyArray,
+                                               &cname);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -1523,6 +1528,9 @@ nsresult HappyEyeballsConnectionAttempt::OnARecord(nsIDNSRecord* aRecord,
 
   nsTArray<NetAddr> addresses;
   addrRecord->GetAddresses(addresses);
+
+  nsAutoCString cname;
+  (void)addrRecord->GetCanonicalName(cname);
 
   // Filter to only IPv4 addresses
   nsTArray<NetAddr> ipv4Addresses;
@@ -1534,7 +1542,7 @@ nsresult HappyEyeballsConnectionAttempt::OnARecord(nsIDNSRecord* aRecord,
   }
 
   rv = happy_eyeballs_process_dns_response_a(mHappyEyeballs, aId,
-                                             &ipv4Addresses);
+                                             &ipv4Addresses, &cname);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -1561,8 +1569,9 @@ nsresult HappyEyeballsConnectionAttempt::OnAAAARecord(nsIDNSRecord* aRecord,
   nsresult rv;
   if (NS_FAILED(status) || !addrRecord) {
     nsTArray<NetAddr> emptyArray;
+    nsAutoCString cname;
     rv = happy_eyeballs_process_dns_response_aaaa(mHappyEyeballs, aId,
-                                                  &emptyArray);
+                                                  &emptyArray, &cname);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -1571,6 +1580,9 @@ nsresult HappyEyeballsConnectionAttempt::OnAAAARecord(nsIDNSRecord* aRecord,
 
   nsTArray<NetAddr> addresses;
   addrRecord->GetAddresses(addresses);
+
+  nsAutoCString cname;
+  (void)addrRecord->GetCanonicalName(cname);
 
   // Filter to only IPv6 addresses
   nsTArray<NetAddr> ipv6Addresses;
@@ -1582,7 +1594,7 @@ nsresult HappyEyeballsConnectionAttempt::OnAAAARecord(nsIDNSRecord* aRecord,
   }
 
   rv = happy_eyeballs_process_dns_response_aaaa(mHappyEyeballs, aId,
-                                                &ipv6Addresses);
+                                                &ipv6Addresses, &cname);
   if (NS_FAILED(rv)) {
     return rv;
   }
