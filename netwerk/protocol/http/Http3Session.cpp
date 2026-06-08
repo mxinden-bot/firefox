@@ -337,8 +337,23 @@ void Http3Session::Shutdown() {
   if (mBeforeConnectedError && mHad0RttStream) {
     mDontExclude = true;
   }
+  // A connection that finished its handshake but was then torn down by the
+  // QUIC idle timeout while transactions were still in flight is an HTTP/3
+  // black hole: the path stopped delivering datagrams (e.g. a VPN, firewall or
+  // middlebox that drops sustained UDP) even though the handshake's first
+  // packets got through. The streams left in mStreamTransactionHash never made
+  // progress. Treat this like a connection error so we exclude H3 for this
+  // origin and fall back to HTTP/2; otherwise every subsequent navigation
+  // re-races into a fresh H3 connection that stalls again for the full idle
+  // timeout. The exclusion is per-origin and reset on network changes. See
+  // bug 2044202.
+  bool http3BlackHole =
+      StaticPrefs::network_http_http3_exclude_after_blackhole() &&
+      !mBeforeConnectedError && mUdpConn &&
+      mUdpConn->CloseReason() == ConnectionCloseReason::IDLE_TIMEOUT &&
+      !mStreamTransactionHash.IsEmpty();
   if ((mBeforeConnectedError ||
-       (mError == NS_ERROR_NET_HTTP3_PROTOCOL_ERROR)) &&
+       (mError == NS_ERROR_NET_HTTP3_PROTOCOL_ERROR) || http3BlackHole) &&
       !isNSSError && !isEchRetry && !mConnInfo->GetWebTransport() &&
       !allowToRetryWithDifferentIPFamily && !mDontExclude) {
     gHttpHandler->ExcludeHttp3(mConnInfo);
