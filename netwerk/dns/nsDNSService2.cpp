@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <inttypes.h>
+
 #include "nsDNSService2.h"
 #include "nsIDNSRecord.h"
 #include "nsIDNSListener.h"
@@ -26,12 +28,14 @@
 #include "prio.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsNetAddr.h"
+#include "nsPrintfCString.h"
 #include "nsNetUtil.h"
 #include "nsProxyRelease.h"
 #include "nsQueryObject.h"
 #include "nsIObserverService.h"
 #include "nsINetworkLinkService.h"
 #include "DNSAdditionalInfo.h"
+#include "DNSProfilerMarkers.h"
 #include "TRRService.h"
 
 #include "mozilla/ClearOnShutdown.h"
@@ -513,6 +517,12 @@ NS_IMPL_ISUPPORTS(nsDNSAsyncRequest, nsICancelable)
 void nsDNSAsyncRequest::OnResolveHostComplete(nsHostResolver* resolver,
                                               nsHostRecord* hostRecord,
                                               nsresult status) {
+  if (mType == nsIDNSService::RESOLVE_TYPE_HTTPSSVC &&
+      profiler_thread_is_being_profiled_for_markers()) {
+    PROFILER_MARKER(
+        "HTTPSRR notify listener", NETWORK, {}, HTTPSRRMarker, mHost,
+        nsPrintfCString("status=0x%08" PRIx32, static_cast<uint32_t>(status)));
+  }
   // need to have an owning ref when we issue the callback to enable
   // the caller to be able to addref/release multiple times without
   // destroying the record prematurely.

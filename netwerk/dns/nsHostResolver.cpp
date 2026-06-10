@@ -32,6 +32,7 @@
 #include "nsURLHelper.h"
 #include "nsThreadUtils.h"
 #include "nsThreadPool.h"
+#include "DNSProfilerMarkers.h"
 #include "GetAddrInfo.h"
 #include "TRR.h"
 #include "TRRQuery.h"
@@ -488,6 +489,7 @@ nsresult nsHostResolver::ResolveHost(const nsACString& aHost,
   // callback before returning.
   RefPtr<nsHostRecord> result;
   nsresult status = NS_OK, rv = NS_OK;
+  const char* lookupOutcome = nullptr;
   {
     mozilla::AutoWriteLock dbLock(mDBLock);
     MutexAutoLock queueLock(mQueue.mLock);
@@ -540,6 +542,7 @@ nsresult nsHostResolver::ResolveHost(const nsACString& aHost,
     } else if (flags & nsIDNSService::RESOLVE_CREATE_MOCK_HTTPS_RR) {
       result = InitMockHTTPSRecord(key);
       status = result ? NS_OK : NS_ERROR_UNKNOWN_HOST;
+      lookupOutcome = "mock record";
     } else {
       RefPtr<nsHostRecord> rec =
           mRecordDB.LookupOrInsertWith(key, [&] { return InitRecord(key); });
@@ -632,6 +635,7 @@ nsresult nsHostResolver::ResolveHost(const nsACString& aHost,
              "[%p].",
              host.get(), callback.get()));
 
+        lookupOutcome = "joined in-progress lookup";
         rec->mCallbacks.insertBack(callback);
 
         if (rec && rec->onQueue()) {
@@ -661,6 +665,23 @@ nsresult nsHostResolver::ResolveHost(const nsACString& aHost,
     }  // else (main path)
 
   }  // lock
+
+  if (type == nsIDNSService::RESOLVE_TYPE_HTTPSSVC &&
+      profiler_thread_is_being_profiled_for_markers()) {
+    nsAutoCString detail;
+    if (lookupOutcome) {
+      detail.Assign(lookupOutcome);
+    } else if (result) {
+      detail.Assign(NS_FAILED(status) ? "negative cache hit" : "cache hit");
+    } else if (NS_FAILED(rv)) {
+      detail.AppendPrintf("failed to start lookup: 0x%08" PRIx32,
+                          static_cast<uint32_t>(rv));
+    } else {
+      detail.Assign("lookup started");
+    }
+    PROFILER_MARKER("HTTPSRR ResolveHost", NETWORK, {}, HTTPSRRMarker, host,
+                    detail);
+  }
 
   if (result) {
     callback->OnResolveHostComplete(this, result, status);
@@ -1799,6 +1820,21 @@ void nsHostResolver::ResolveHostTask() {
       TypeRecordResultType result = AsVariant(mozilla::Nothing());
       uint32_t ttl = UINT32_MAX;
       nsresult status = ResolveHTTPSRecord(rec->host, rec->flags, result, ttl);
+      if (profiler_thread_is_being_profiled_for_markers()) {
+        PROFILER_MARKER("HTTPSRR queue", NETWORK,
+                        MarkerTiming::Interval(rec->mNativeStart, startTime),
+                        HTTPSRRMarker, rec->host,
+                        "waiting for a DNS resolver thread"_ns);
+        size_t records = result.is<TypeRecordHTTPSSVC>()
+                             ? result.as<TypeRecordHTTPSSVC>().Length()
+                             : 0;
+        PROFILER_MARKER(
+            "HTTPSRR native resolve", NETWORK,
+            MarkerTiming::IntervalUntilNowFrom(startTime), HTTPSRRMarker,
+            rec->host,
+            nsPrintfCString("status=0x%08" PRIx32 " records=%zu",
+                            static_cast<uint32_t>(status), records));
+      }
       mozilla::glean::networking::dns_native_count
           .EnumGet(rec->pb
                        ? glean::networking::DnsNativeCountLabel::eHttpsPrivate

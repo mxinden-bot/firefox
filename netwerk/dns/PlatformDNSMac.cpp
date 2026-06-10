@@ -2,11 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "DNSProfilerMarkers.h"
 #include "GetAddrInfo.h"
 #include "mozilla/glean/NetwerkMetrics.h"
 #include "mozilla/net/DNSPacket.h"
 #include "nsIDNSService.h"
+#include "nsPrintfCString.h"
 #include "mozilla/StaticPrefs_network.h"
+
+#include <inttypes.h>
 
 #include <dns_sd.h>
 #include <poll.h>
@@ -156,6 +160,14 @@ nsresult ResolveHTTPSRecordImpl(const nsACString& aHost,
   DNSServiceRefDeallocate(sdRef);
   mozilla::glean::networking::dns_native_https_call_time.AccumulateRawDuration(
       TimeStamp::Now() - startTime);
+
+  if (profiler_thread_is_being_profiled_for_markers()) {
+    PROFILER_MARKER(
+        "HTTPSRR OS query", NETWORK,
+        MarkerTiming::IntervalUntilNowFrom(startTime), HTTPSRRMarker, host,
+        nsPrintfCString("DNSServiceQueryRecord poll=%d rv=0x%08" PRIx32, result,
+                        static_cast<uint32_t>(context.mRv)));
+  }
 
   LOG("resolving %s done %x ttl=%u", host.get(), context.mRv, aTTL);
   if (NS_FAILED(context.mRv)) {

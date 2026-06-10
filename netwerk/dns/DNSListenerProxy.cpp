@@ -3,9 +3,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/net/DNSListenerProxy.h"
+#include "mozilla/ProfilerMarkers.h"
 #include "mozilla/StaticPrefs_network.h"
+#include "mozilla/TimeStamp.h"
 #include "nsICancelable.h"
+#include "nsPrintfCString.h"
 #include "nsThreadUtils.h"
+
+#include <inttypes.h>
 
 namespace mozilla {
 namespace net {
@@ -24,8 +29,14 @@ DNSListenerProxy::OnLookupComplete(nsICancelable* aRequest,
   nsCOMPtr<nsICancelable> request = aRequest;
   nsCOMPtr<nsIDNSRecord> record = aRecord;
 
+  TimeStamp dispatchTime = TimeStamp::Now();
   nsCOMPtr<nsIRunnable> event = NS_NewRunnableFunction(
-      "DNSListenerProxy::OnLookupComplete", [self, request, record, aStatus]() {
+      "DNSListenerProxy::OnLookupComplete",
+      [self, request, record, aStatus, dispatchTime]() {
+        PROFILER_MARKER_TEXT("DNS OnLookupComplete dispatch", NETWORK,
+                             MarkerTiming::IntervalUntilNowFrom(dispatchTime),
+                             nsPrintfCString("status=0x%08" PRIx32,
+                                             static_cast<uint32_t>(aStatus)));
         (void)self->mListener->OnLookupComplete(request, record, aStatus);
         self->mListener = nullptr;
       });

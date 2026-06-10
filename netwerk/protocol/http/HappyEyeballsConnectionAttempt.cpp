@@ -9,6 +9,7 @@
 
 #include "HappyEyeballsConnectionAttempt.h"
 #include "ConnectionEntry.h"
+#include "DNSProfilerMarkers.h"
 #include "NSSErrorsService.h"
 #include "mozilla/net/NeckoChannelParams.h"
 #include "mozilla/StaticPrefs_network.h"
@@ -580,6 +581,21 @@ void HappyEyeballsConnectionAttempt::DNSLookup(
             getter_AddRefs(request));
         break;
     }
+  }
+
+  if (aType == happy_eyeballs::DnsRecordType::Https &&
+      profiler_thread_is_being_profiled_for_markers()) {
+    nsAutoCString detail;
+    if (NS_SUCCEEDED(rv)) {
+      detail.Assign("query issued");
+    } else if (rv == NS_ERROR_NOT_AVAILABLE) {
+      detail.Assign("skipped: origin not eligible for HTTPS RR");
+    } else {
+      detail.AppendPrintf("not issued: 0x%08" PRIx32,
+                          static_cast<uint32_t>(rv));
+    }
+    PROFILER_MARKER("HTTPSRR AsyncResolve", NETWORK, {}, HTTPSRRMarker,
+                    aHostname, detail);
   }
 
   if (NS_SUCCEEDED(rv) && request) {
