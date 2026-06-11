@@ -74,9 +74,10 @@ nsresult ResolveHTTPSRecordImpl(const nsACString& aHost,
         mozilla::glean::networking::dns_native_https_call_time
             .AccumulateRawDuration(TimeStamp::Now() - startTime);
         if (profiler_thread_is_being_profiled_for_markers()) {
-          PROFILER_MARKER("HTTPSRR OS query", NETWORK,
+          PROFILER_MARKER("DNS OS query", NETWORK,
                           MarkerTiming::IntervalUntilNowFrom(startTime),
-                          HTTPSRRMarker, host,
+                          DNSQueryMarker, host, "HTTPS", ""_ns, ""_ns,
+                          int64_t(-1),
                           nsPrintfCString("res_nquery len=%d", len));
         }
         if (len < 0) {

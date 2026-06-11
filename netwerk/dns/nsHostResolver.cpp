@@ -534,6 +534,7 @@ nsresult nsHostResolver::ResolveHost(const nsACString& aHost,
     // `result` is set and the callback fires outside the lock.
     if (IS_ADDR_TYPE(type) && IsLoopbackHostname(host)) {
       nsresult initRv;
+      lookupOutcome = "loopback";
       result = InitLoopbackRecord(key, &initRv);
       if (NS_WARN_IF(NS_FAILED(initRv))) {
         return initRv;
@@ -569,12 +570,14 @@ nsresult nsHostResolver::ResolveHost(const nsACString& aHost,
         // if the host name is an IP address literal and has been
         // parsed, go ahead and use it.
         LOG(("  Using cached address for IP Literal [%s].\n", host.get()));
+        lookupOutcome = "IP literal";
         result = FromCachedIPLiteral(rec);
       } else if (addrRec && NS_SUCCEEDED(tempAddr.InitFromString(host))) {
         // try parsing the host name as an IP address literal to short
         // circuit full host resolution.  (this is necessary on some
         // platforms like Win9x.  see bug 219376 for more details.)
         LOG(("  Host is IP Literal [%s].\n", host.get()));
+        lookupOutcome = "IP literal";
         result = FromIPLiteral(addrRec, tempAddr);
       } else if (mQueue.PendingCount() >= MAX_NON_PRIORITY_REQUESTS &&
                  !IsHighPriority(flags) && !rec->mResolving) {
@@ -666,21 +669,25 @@ nsresult nsHostResolver::ResolveHost(const nsACString& aHost,
 
   }  // lock
 
-  if (type == nsIDNSService::RESOLVE_TYPE_HTTPSSVC &&
-      profiler_thread_is_being_profiled_for_markers()) {
-    nsAutoCString detail;
+  if (profiler_thread_is_being_profiled_for_markers()) {
+    nsAutoCString outcome;
     if (lookupOutcome) {
-      detail.Assign(lookupOutcome);
+      outcome.Assign(lookupOutcome);
     } else if (result) {
-      detail.Assign(NS_FAILED(status) ? "negative cache hit" : "cache hit");
+      outcome.Assign(NS_FAILED(status) ? "negative cache hit" : "cache hit");
     } else if (NS_FAILED(rv)) {
-      detail.AppendPrintf("failed to start lookup: 0x%08" PRIx32,
-                          static_cast<uint32_t>(rv));
+      outcome.Assign("failed to start lookup");
     } else {
-      detail.Assign("lookup started");
+      outcome.Assign("lookup started");
     }
-    PROFILER_MARKER("HTTPSRR ResolveHost", NETWORK, {}, HTTPSRRMarker, host,
-                    detail);
+    PROFILER_MARKER(
+        "DNS ResolveHost", NETWORK, {}, DNSQueryMarker, host,
+        DNSQueryTypeString(type, af), outcome,
+        NS_FAILED(rv)
+            ? nsPrintfCString("0x%08" PRIx32, static_cast<uint32_t>(rv))
+            : nsPrintfCString(""),
+        int64_t(-1),
+        (flags & nsIDNSService::RESOLVE_SPECULATE) ? "speculative"_ns : ""_ns);
   }
 
   if (result) {
@@ -1821,19 +1828,20 @@ void nsHostResolver::ResolveHostTask() {
       uint32_t ttl = UINT32_MAX;
       nsresult status = ResolveHTTPSRecord(rec->host, rec->flags, result, ttl);
       if (profiler_thread_is_being_profiled_for_markers()) {
-        PROFILER_MARKER("HTTPSRR queue", NETWORK,
-                        MarkerTiming::Interval(rec->mNativeStart, startTime),
-                        HTTPSRRMarker, rec->host,
-                        "waiting for a DNS resolver thread"_ns);
+        PROFILER_MARKER(
+            "DNS queue", NETWORK,
+            MarkerTiming::Interval(rec->mNativeStart, startTime),
+            DNSQueryMarker, rec->host, DNSQueryTypeString(rec->type, rec->af),
+            "waiting for a DNS resolver thread"_ns, ""_ns, int64_t(-1), ""_ns);
         size_t records = result.is<TypeRecordHTTPSSVC>()
                              ? result.as<TypeRecordHTTPSSVC>().Length()
                              : 0;
         PROFILER_MARKER(
-            "HTTPSRR native resolve", NETWORK,
-            MarkerTiming::IntervalUntilNowFrom(startTime), HTTPSRRMarker,
-            rec->host,
-            nsPrintfCString("status=0x%08" PRIx32 " records=%zu",
-                            static_cast<uint32_t>(status), records));
+            "DNS native resolve", NETWORK,
+            MarkerTiming::IntervalUntilNowFrom(startTime), DNSQueryMarker,
+            rec->host, DNSQueryTypeString(rec->type, rec->af), ""_ns,
+            nsPrintfCString("0x%08" PRIx32, static_cast<uint32_t>(status)),
+            int64_t(records), ""_ns);
       }
       mozilla::glean::networking::dns_native_count
           .EnumGet(rec->pb
@@ -1847,6 +1855,20 @@ void nsHostResolver::ResolveHostTask() {
 
     nsresult status =
         GetAddrInfo(rec->host, rec->af, rec->flags, getter_AddRefs(ai), getTtl);
+
+    if (profiler_thread_is_being_profiled_for_markers()) {
+      PROFILER_MARKER(
+          "DNS queue", NETWORK,
+          MarkerTiming::Interval(rec->mNativeStart, startTime), DNSQueryMarker,
+          rec->host, DNSQueryTypeString(rec->type, rec->af),
+          "waiting for a DNS resolver thread"_ns, ""_ns, int64_t(-1), ""_ns);
+      PROFILER_MARKER(
+          "DNS native resolve", NETWORK,
+          MarkerTiming::IntervalUntilNowFrom(startTime), DNSQueryMarker,
+          rec->host, DNSQueryTypeString(rec->type, rec->af), ""_ns,
+          nsPrintfCString("0x%08" PRIx32, static_cast<uint32_t>(status)),
+          int64_t(ai ? ai->Addresses().Length() : 0), ""_ns);
+    }
 
     mozilla::glean::networking::dns_native_count
         .EnumGet(rec->pb ? glean::networking::DnsNativeCountLabel::ePrivate

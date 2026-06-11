@@ -51,9 +51,9 @@ nsresult ResolveHTTPSRecordImpl(const nsACString& aHost,
       TimeStamp::Now() - startTime);
 
   if (profiler_thread_is_being_profiled_for_markers()) {
-    PROFILER_MARKER("HTTPSRR OS query", NETWORK,
+    PROFILER_MARKER("DNS OS query", NETWORK,
                     MarkerTiming::IntervalUntilNowFrom(startTime),
-                    HTTPSRRMarker, host,
+                    DNSQueryMarker, host, "HTTPS", ""_ns, ""_ns, int64_t(-1),
                     nsPrintfCString("DnsQuery_A status=%ld", status));
   }
 

@@ -115,11 +115,11 @@ nsresult ResolveHTTPSRecordImpl(const nsACString& aHost,
   mozilla::glean::networking::dns_native_https_call_time.AccumulateRawDuration(
       TimeStamp::Now() - startTime);
   if (profiler_thread_is_being_profiled_for_markers()) {
-    PROFILER_MARKER("HTTPSRR OS query", NETWORK,
+    PROFILER_MARKER("DNS OS query", NETWORK,
                     MarkerTiming::IntervalUntilNowFrom(startTime),
-                    HTTPSRRMarker, host,
-                    nsPrintfCString("android_res_nquery rv=0x%08" PRIx32,
-                                    static_cast<uint32_t>(rv)));
+                    DNSQueryMarker, host, "HTTPS", ""_ns,
+                    nsPrintfCString("0x%08" PRIx32, static_cast<uint32_t>(rv)),
+                    int64_t(-1), "android_res_nquery"_ns);
   }
   if (NS_FAILED(rv)) {
     LOG("failed rv");

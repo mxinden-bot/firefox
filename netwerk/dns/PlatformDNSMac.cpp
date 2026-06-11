@@ -163,10 +163,10 @@ nsresult ResolveHTTPSRecordImpl(const nsACString& aHost,
 
   if (profiler_thread_is_being_profiled_for_markers()) {
     PROFILER_MARKER(
-        "HTTPSRR OS query", NETWORK,
-        MarkerTiming::IntervalUntilNowFrom(startTime), HTTPSRRMarker, host,
-        nsPrintfCString("DNSServiceQueryRecord poll=%d rv=0x%08" PRIx32, result,
-                        static_cast<uint32_t>(context.mRv)));
+        "DNS OS query", NETWORK, MarkerTiming::IntervalUntilNowFrom(startTime),
+        DNSQueryMarker, host, "HTTPS", ""_ns,
+        nsPrintfCString("0x%08" PRIx32, static_cast<uint32_t>(context.mRv)),
+        int64_t(-1), nsPrintfCString("DNSServiceQueryRecord poll=%d", result));
   }
 
   LOG("resolving %s done %x ttl=%u", host.get(), context.mRv, aTTL);

@@ -3,9 +3,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDNSPrefetch.h"
+#include "DNSProfilerMarkers.h"
 #include "nsCOMPtr.h"
+#include "nsPrintfCString.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
+
+#include <inttypes.h>
 
 #include "nsIDNSAdditionalInfo.h"
 #include "nsIDNSListener.h"
@@ -67,10 +71,19 @@ nsresult nsDNSPrefetch::Prefetch(nsIDNSService::DNSFlags flags) {
 
   flags |= nsIDNSService::GetFlagsFromTRRMode(mTRRMode);
 
-  return sDNSService->AsyncResolveNative(
+  nsresult rv = sDNSService->AsyncResolveNative(
       mHostname, nsIDNSService::RESOLVE_TYPE_DEFAULT,
       flags | nsIDNSService::RESOLVE_SPECULATE, nullptr, this, target,
       mOriginAttributes, getter_AddRefs(tmpOutstanding));
+  if (profiler_thread_is_being_profiled_for_markers()) {
+    PROFILER_MARKER("DNS prefetch", NETWORK, {}, DNSQueryMarker, mHostname,
+                    "A+AAAA", NS_SUCCEEDED(rv) ? "requested"_ns : "failed"_ns,
+                    NS_FAILED(rv) ? nsPrintfCString("0x%08" PRIx32,
+                                                    static_cast<uint32_t>(rv))
+                                  : nsPrintfCString(""),
+                    int64_t(-1), ""_ns);
+  }
+  return rv;
 }
 
 nsresult nsDNSPrefetch::PrefetchLow(nsIDNSService::DNSFlags aFlags) {
@@ -140,9 +153,19 @@ nsresult nsDNSPrefetch::FetchHTTPSSVC(
   if (mPort != -1) {
     sDNSService->NewAdditionalInfo(""_ns, mPort, getter_AddRefs(info));
   }
-  return sDNSService->AsyncResolveNative(
+  nsresult rv = sDNSService->AsyncResolveNative(
       mHostname, nsIDNSService::RESOLVE_TYPE_HTTPSSVC, flags, info, listener,
       target, mOriginAttributes, getter_AddRefs(tmpOutstanding));
+  if (profiler_thread_is_being_profiled_for_markers()) {
+    PROFILER_MARKER(
+        "DNS HTTPSSVC fetch", NETWORK, {}, DNSQueryMarker, mHostname, "HTTPS",
+        NS_SUCCEEDED(rv) ? "requested"_ns : "failed"_ns,
+        NS_FAILED(rv)
+            ? nsPrintfCString("0x%08" PRIx32, static_cast<uint32_t>(rv))
+            : nsPrintfCString(""),
+        int64_t(-1), aPrefetch ? "speculative"_ns : ""_ns);
+  }
+  return rv;
 }
 
 NS_IMPL_ISUPPORTS(nsDNSPrefetch, nsIDNSListener)

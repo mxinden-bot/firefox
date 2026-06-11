@@ -517,11 +517,12 @@ NS_IMPL_ISUPPORTS(nsDNSAsyncRequest, nsICancelable)
 void nsDNSAsyncRequest::OnResolveHostComplete(nsHostResolver* resolver,
                                               nsHostRecord* hostRecord,
                                               nsresult status) {
-  if (mType == nsIDNSService::RESOLVE_TYPE_HTTPSSVC &&
-      profiler_thread_is_being_profiled_for_markers()) {
+  if (profiler_thread_is_being_profiled_for_markers()) {
     PROFILER_MARKER(
-        "HTTPSRR notify listener", NETWORK, {}, HTTPSRRMarker, mHost,
-        nsPrintfCString("status=0x%08" PRIx32, static_cast<uint32_t>(status)));
+        "DNS notify listener", NETWORK, {}, DNSQueryMarker, mHost,
+        DNSQueryTypeString(mType, mAF), ""_ns,
+        nsPrintfCString("0x%08" PRIx32, static_cast<uint32_t>(status)),
+        int64_t(-1), ""_ns);
   }
   // need to have an owning ref when we issue the callback to enable
   // the caller to be able to addref/release multiple times without
@@ -1035,6 +1036,12 @@ nsresult nsDNSService::AsyncResolveInternal(
     MutexAutoLock lock(mLock);
 
     if (mDisablePrefetch && (flags & RESOLVE_SPECULATE)) {
+      if (profiler_thread_is_being_profiled_for_markers()) {
+        PROFILER_MARKER("DNS prefetch blocked", NETWORK, {}, DNSQueryMarker,
+                        aHostname, DNSQueryTypeString(type, 0),
+                        "dropped: network.dns.disablePrefetch"_ns, ""_ns,
+                        int64_t(-1), ""_ns);
+      }
       return NS_ERROR_DNS_LOOKUP_QUEUE_FULL;
     }
 

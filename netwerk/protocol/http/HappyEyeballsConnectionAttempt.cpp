@@ -583,19 +583,26 @@ void HappyEyeballsConnectionAttempt::DNSLookup(
     }
   }
 
-  if (aType == happy_eyeballs::DnsRecordType::Https &&
-      profiler_thread_is_being_profiled_for_markers()) {
-    nsAutoCString detail;
+  if (profiler_thread_is_being_profiled_for_markers()) {
+    const char* qtype = aType == happy_eyeballs::DnsRecordType::Https  ? "HTTPS"
+                        : aType == happy_eyeballs::DnsRecordType::Aaaa ? "AAAA"
+                                                                       : "A";
+    nsAutoCString outcome;
     if (NS_SUCCEEDED(rv)) {
-      detail.Assign("query issued");
-    } else if (rv == NS_ERROR_NOT_AVAILABLE) {
-      detail.Assign("skipped: origin not eligible for HTTPS RR");
+      outcome.Assign("query issued");
+    } else if (rv == NS_ERROR_NOT_AVAILABLE &&
+               aType == happy_eyeballs::DnsRecordType::Https) {
+      outcome.Assign("skipped: origin not eligible for HTTPS RR");
     } else {
-      detail.AppendPrintf("not issued: 0x%08" PRIx32,
-                          static_cast<uint32_t>(rv));
+      outcome.Assign("not issued");
     }
-    PROFILER_MARKER("HTTPSRR AsyncResolve", NETWORK, {}, HTTPSRRMarker,
-                    aHostname, detail);
+    PROFILER_MARKER(
+        "HE DNS request", NETWORK, {}, DNSQueryMarker, aHostname,
+        ProfilerString8View::WrapNullTerminatedString(qtype), outcome,
+        NS_FAILED(rv)
+            ? nsPrintfCString("0x%08" PRIx32, static_cast<uint32_t>(rv))
+            : nsPrintfCString(""),
+        int64_t(-1), ""_ns);
   }
 
   if (NS_SUCCEEDED(rv) && request) {
