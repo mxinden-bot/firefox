@@ -52,6 +52,7 @@
 #include "nsComponentManagerUtils.h"
 #include "nsStreamUtils.h"
 #include "nsIOService.h"
+#include "DNSProfilerMarkers.h"
 #include "nsDNSPrefetch.h"
 #include "nsChannelClassifier.h"
 #include "nsIRedirectResultListener.h"
@@ -8245,12 +8246,22 @@ void nsHttpChannel::MaybeStartDNSPrefetch() {
       dnsFlags |= nsIDNSService::RESOLVE_BYPASS_CACHE;
     }
 
-    (void)mDNSPrefetch->PrefetchHigh(dnsFlags);
-
+    // Issue the HTTPS RR query before the address query. The HTTPS record
+    // is the slower lookup on common stub resolver setups and the one the
+    // connection race is most sensitive to, so it must not queue behind the
+    // address lookup.
     bool unused;
-    if (StaticPrefs::network_dns_use_https_rr_as_altsvc() && !mHTTPSSVCRecord &&
-        !(mCaps & NS_HTTP_DISALLOW_HTTPS_RR) &&
-        canUseHTTPSRRonNetwork(unused)) {
+    const char* httpsRRSkipReason = nullptr;
+    if (!StaticPrefs::network_dns_use_https_rr_as_altsvc()) {
+      httpsRRSkipReason = "skipped: use_https_rr_as_altsvc disabled";
+    } else if (mHTTPSSVCRecord) {
+      httpsRRSkipReason = "skipped: HTTPS record already available";
+    } else if (mCaps & NS_HTTP_DISALLOW_HTTPS_RR) {
+      httpsRRSkipReason = "skipped: HTTPS RR disallowed for this channel";
+    } else if (!canUseHTTPSRRonNetwork(unused)) {
+      httpsRRSkipReason = "skipped: HTTPS RR not usable on this network";
+    }
+    if (!httpsRRSkipReason) {
       MOZ_ASSERT(!mHTTPSSVCRecord);
 
       OriginAttributes originAttributes;
@@ -8263,7 +8274,23 @@ void nsHttpChannel::MaybeStartDNSPrefetch() {
                                     [](nsIDNSHTTPSSVCRecord*) {
                                       // Do nothing. This is a DNS prefetch.
                                     });
+    } else if (profiler_thread_is_being_profiled_for_markers()) {
+      nsAutoCString host;
+      mURI->GetAsciiHost(host);
+      PROFILER_MARKER(
+          "Channel DNS prefetch skipped", NETWORK, {}, DNSQueryMarker, host,
+          "HTTPS",
+          ProfilerString8View::WrapNullTerminatedString(httpsRRSkipReason),
+          ""_ns, int64_t(-1), ""_ns);
     }
+
+    (void)mDNSPrefetch->PrefetchHigh(dnsFlags);
+  } else if (profiler_thread_is_being_profiled_for_markers()) {
+    nsAutoCString host;
+    mURI->GetAsciiHost(host);
+    PROFILER_MARKER("Channel DNS prefetch skipped", NETWORK, {}, DNSQueryMarker,
+                    host, "A+AAAA", "skipped: proxy DNS strategy"_ns, ""_ns,
+                    int64_t(-1), ""_ns);
   }
 }
 

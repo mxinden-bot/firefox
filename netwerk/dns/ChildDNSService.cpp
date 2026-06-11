@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/net/ChildDNSService.h"
+#include "DNSProfilerMarkers.h"
 #include "nsDNSPrefetch.h"
 #include "nsIDNSListener.h"
 #include "nsIOService.h"
@@ -112,6 +113,12 @@ nsresult ChildDNSService::AsyncResolveInternal(
   }
 
   if (mDisablePrefetch && (flags & RESOLVE_SPECULATE)) {
+    if (profiler_thread_is_being_profiled_for_markers()) {
+      PROFILER_MARKER("DNS prefetch blocked", NETWORK, {}, DNSQueryMarker,
+                      hostname, DNSQueryTypeString(type, 0),
+                      "dropped: network.dns.disablePrefetch"_ns, ""_ns,
+                      int64_t(-1), ""_ns);
+    }
     return NS_ERROR_DNS_LOOKUP_QUEUE_FULL;
   }
 
