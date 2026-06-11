@@ -8246,8 +8246,10 @@ void nsHttpChannel::MaybeStartDNSPrefetch() {
       dnsFlags |= nsIDNSService::RESOLVE_BYPASS_CACHE;
     }
 
-    (void)mDNSPrefetch->PrefetchHigh(dnsFlags);
-
+    // Issue the HTTPS RR query before the address query. The HTTPS record
+    // is the slower lookup on common stub resolver setups and the one the
+    // connection race is most sensitive to, so it must not queue behind the
+    // address lookup.
     bool unused;
     const char* httpsRRSkipReason = nullptr;
     if (!StaticPrefs::network_dns_use_https_rr_as_altsvc()) {
@@ -8281,6 +8283,8 @@ void nsHttpChannel::MaybeStartDNSPrefetch() {
           ProfilerString8View::WrapNullTerminatedString(httpsRRSkipReason),
           ""_ns, int64_t(-1), ""_ns);
     }
+
+    (void)mDNSPrefetch->PrefetchHigh(dnsFlags);
   } else if (profiler_thread_is_being_profiled_for_markers()) {
     nsAutoCString host;
     mURI->GetAsciiHost(host);

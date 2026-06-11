@@ -239,14 +239,8 @@ nsresult HTMLDNSPrefetch::Prefetch(
     return NS_ERROR_NOT_AVAILABLE;
 
   nsCOMPtr<nsICancelable> tmpOutstanding;
-  nsresult rv = sDNSService->AsyncResolveNative(
-      NS_ConvertUTF16toUTF8(hostname), nsIDNSService::RESOLVE_TYPE_DEFAULT,
-      flags | nsIDNSService::RESOLVE_SPECULATE, nullptr, sDNSListener, nullptr,
-      aPartitionedPrincipalOriginAttributes, getter_AddRefs(tmpOutstanding));
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
+  // Issue the HTTPS RR query before the address query so the slower lookup
+  // does not queue behind the address lookup.
   if (StaticPrefs::network_dns_upgrade_with_https_rr() ||
       StaticPrefs::network_dns_use_https_rr_as_altsvc()) {
     (void)sDNSService->AsyncResolveNative(
@@ -256,7 +250,10 @@ nsresult HTMLDNSPrefetch::Prefetch(
         getter_AddRefs(tmpOutstanding));
   }
 
-  return NS_OK;
+  return sDNSService->AsyncResolveNative(
+      NS_ConvertUTF16toUTF8(hostname), nsIDNSService::RESOLVE_TYPE_DEFAULT,
+      flags | nsIDNSService::RESOLVE_SPECULATE, nullptr, sDNSListener, nullptr,
+      aPartitionedPrincipalOriginAttributes, getter_AddRefs(tmpOutstanding));
 }
 
 nsresult HTMLDNSPrefetch::Prefetch(
@@ -399,21 +396,22 @@ void HTMLDNSPrefetch::SendRequest(Element& aElement,
   } else {
     nsCOMPtr<nsICancelable> tmpOutstanding;
 
-    rv = sDNSService->AsyncResolveNative(
-        hostName, nsIDNSService::RESOLVE_TYPE_DEFAULT,
-        aFlags | nsIDNSService::RESOLVE_SPECULATE, nullptr, sDNSListener,
-        nullptr, oa, getter_AddRefs(tmpOutstanding));
-    if (NS_FAILED(rv)) {
-      return;
-    }
-
-    // Fetch HTTPS RR if needed.
+    // Fetch HTTPS RR if needed, before the address query so the slower
+    // lookup does not queue behind the address lookup.
     if (StaticPrefs::network_dns_upgrade_with_https_rr() ||
         StaticPrefs::network_dns_use_https_rr_as_altsvc()) {
       sDNSService->AsyncResolveNative(
           hostName, nsIDNSService::RESOLVE_TYPE_HTTPSSVC,
           aFlags | nsIDNSService::RESOLVE_SPECULATE, nullptr, sDNSListener,
           nullptr, oa, getter_AddRefs(tmpOutstanding));
+    }
+
+    rv = sDNSService->AsyncResolveNative(
+        hostName, nsIDNSService::RESOLVE_TYPE_DEFAULT,
+        aFlags | nsIDNSService::RESOLVE_SPECULATE, nullptr, sDNSListener,
+        nullptr, oa, getter_AddRefs(tmpOutstanding));
+    if (NS_FAILED(rv)) {
+      return;
     }
   }
 
