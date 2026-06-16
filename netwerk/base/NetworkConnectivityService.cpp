@@ -18,6 +18,8 @@
 #include "nsIHttpChannelInternal.h"
 #include "nsINetworkLinkService.h"
 #include "mozilla/StaticPrefs_network.h"
+#include "mozilla/ProfilerMarkers.h"
+#include "nsPrintfCString.h"
 
 static mozilla::LazyLogModule gNCSLog("NetworkConnectivityService");
 #undef LOG
@@ -199,7 +201,22 @@ static inline bool NAT64PrefixCompare(const NetAddr& prefix1,
          prefix1.inet6.ip.u32[2] == prefix2.inet6.ip.u32[2];
 }
 
+static const char* ConnectivityStateToString(
+    nsINetworkConnectivityService::ConnectivityState aState) {
+  switch (aState) {
+    case nsINetworkConnectivityService::OK:
+      return "OK";
+    case nsINetworkConnectivityService::NOT_AVAILABLE:
+      return "NOT_AVAILABLE";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void NetworkConnectivityService::PerformChecks() {
+  PROFILER_MARKER_TEXT("NetworkConnectivity::PerformChecks", NETWORK, {},
+                       "Resetting connectivity state and rechecking"_ns);
+
   mDNSv4 = UNKNOWN;
   mDNSv6 = UNKNOWN;
   mDNS_HTTPS = UNKNOWN;
@@ -599,6 +616,10 @@ NetworkConnectivityService::OnStopRequest(nsIRequest* aRequest,
   }
 
   if (!mIPv6Channel && !mIPv4Channel) {
+    PROFILER_MARKER_TEXT(
+        "NetworkConnectivity::IPCheckComplete", NETWORK, {},
+        nsPrintfCString("IPv4=%s IPv6=%s", ConnectivityStateToString(mIPv4),
+                        ConnectivityStateToString(mIPv6)));
     NotifyObservers("network:connectivity-service:ip-checks-complete");
   }
 
