@@ -2832,6 +2832,43 @@ network:
     expires: never
     telemetry_mirror: h#NETWORK_ID_ONLINE
 
+  connectivity_ipv4:
+    type: labeled_counter
+    description: >
+      Result of the network connectivity service's IPv4 reachability probe,
+      recorded each time the probe completes. The connectivity service's verdict
+      is used to bias Happy Eyeballs address-family selection on cold
+      connections.
+    labels:
+      - ok
+      - not_available
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=2044951
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=2044951
+    notification_emails:
+      - necko@mozilla.com
+      - mail@max-inden.de
+    expires: never
+
+  connectivity_ipv6:
+    type: labeled_counter
+    description: >
+      Result of the network connectivity service's IPv6 reachability probe,
+      recorded each time the probe completes. A not_available result causes
+      Happy Eyeballs to prefer IPv4 on cold connections.
+    labels:
+      - ok
+      - not_available
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=2044951
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=2044951
+    notification_emails:
+      - necko@mozilla.com
+      - mail@max-inden.de
+    expires: never
+
   backgroundfilesaver_thread_count:
     type: custom_distribution
     description: >

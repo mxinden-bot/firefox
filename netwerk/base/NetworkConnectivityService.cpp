@@ -20,6 +20,7 @@
 #include "mozilla/StaticPrefs_network.h"
 #include "mozilla/ProfilerMarkers.h"
 #include "nsPrintfCString.h"
+#include "mozilla/glean/NetwerkMetrics.h"
 
 static mozilla::LazyLogModule gNCSLog("NetworkConnectivityService");
 #undef LOG
@@ -603,6 +604,12 @@ NetworkConnectivityService::OnStopRequest(nsIRequest* aRequest,
     mIPv4 = status;
     mIPv4Channel = nullptr;
 
+    glean::network::connectivity_ipv4
+        .EnumGet(status == nsINetworkConnectivityService::OK
+                     ? glean::network::ConnectivityIpv4Label::eOk
+                     : glean::network::ConnectivityIpv4Label::eNotAvailable)
+        .Add();
+
     if (mIPv4 == nsINetworkConnectivityService::OK) {
       glean::network::id_online
           .EnumGet(mHasNetworkId ? glean::network::IdOnlineLabel::ePresent
@@ -613,6 +620,12 @@ NetworkConnectivityService::OnStopRequest(nsIRequest* aRequest,
   } else if (aRequest == mIPv6Channel) {
     mIPv6 = status;
     mIPv6Channel = nullptr;
+
+    glean::network::connectivity_ipv6
+        .EnumGet(status == nsINetworkConnectivityService::OK
+                     ? glean::network::ConnectivityIpv6Label::eOk
+                     : glean::network::ConnectivityIpv6Label::eNotAvailable)
+        .Add();
   }
 
   if (!mIPv6Channel && !mIPv4Channel) {
