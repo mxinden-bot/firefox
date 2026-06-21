@@ -177,6 +177,7 @@ class nsHostRecord : public mozilla::LinkedListElement<RefPtr<nsHostRecord>>,
     mTRRSuccess = false;
     mNativeSuccess = false;
     mResolverType = DNSResolverType::Native;
+    mNegativeDnsTtl.reset();
   }
 
   virtual void OnCompleteLookup() {}
@@ -228,9 +229,16 @@ class nsHostRecord : public mozilla::LinkedListElement<RefPtr<nsHostRecord>>,
   mozilla::Atomic<DNSResolverType> mResolverType{DNSResolverType::Native};
 
   // True if this record is a cache of a failed lookup.  Negative cache
-  // entries are valid just like any other (though never for more than 60
-  // seconds), but a use of that negative entry forces an asynchronous refresh.
+  // entries are valid just like any other, but a use of that negative entry
+  // forces an asynchronous refresh.
   bool negative = false;
+
+  // Negative-cache lifetime (seconds) derived from the SOA MINIMUM of a
+  // DoH/TRR response per RFC 2308, when one was present. Set by TRR before
+  // completion and consumed when the negative expiration is computed; a fixed
+  // default is used when it is Nothing (e.g. native resolution, which exposes
+  // no SOA).
+  mozilla::Maybe<uint32_t> mNegativeDnsTtl;
 
   // Explicitly expired
   bool mDoomed = false;

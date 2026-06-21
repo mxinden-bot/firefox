@@ -30,6 +30,7 @@ enum TrrType {
   TRRTYPE_A = 1,
   TRRTYPE_NS = 2,
   TRRTYPE_CNAME = 5,
+  TRRTYPE_SOA = 6,
   TRRTYPE_AAAA = 28,
   TRRTYPE_OPT = 41,
   TRRTYPE_TXT = 16,
@@ -82,6 +83,11 @@ class DNSPacket {
                            const unsigned char* aBuffer,
                            unsigned int aBodySize);
 
+  // RFC 2308 negative-caching TTL derived from the SOA record in the authority
+  // section of a negative (NXDOMAIN/NODATA) response: min(SOA MINIMUM, SOA
+  // record TTL). Nothing if the response carried no SOA.
+  Maybe<uint32_t> GetNegativeTTL() const { return mNegativeTtl; }
+
  protected:
   nsresult PassQName(unsigned int& index, const unsigned char* aBuffer);
   static nsresult ParseSvcParam(unsigned int svcbIndex, uint16_t key,
@@ -102,6 +108,7 @@ class DNSPacket {
   bool mNativePacket = false;
   nsresult mStatus = NS_OK;
   Maybe<nsCString> mOriginHost;
+  Maybe<uint32_t> mNegativeTtl;
 };
 
 }  // namespace net

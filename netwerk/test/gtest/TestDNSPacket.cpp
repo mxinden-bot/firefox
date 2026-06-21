@@ -1,7 +1,10 @@
 #include "gtest/gtest.h"
 
 #include "mozilla/net/DNSPacket.h"
+#include "mozilla/Maybe.h"
 #include "mozilla/Preferences.h"
+
+#include <cstring>
 
 using namespace mozilla;
 using namespace mozilla::net;
@@ -48,6 +51,120 @@ TEST(TestDNSPacket, PaddingLenDisableEcn)
   AssertDnsPadding(16, 48, 33, false, "abcdefghijkl.de"_ns);
   AssertDnsPadding(16, 64, 34, false, "abcdefghijklm.de"_ns);
   AssertDnsPadding(16, 64, 35, false, "abcdefghijklmn.de"_ns);
+}
+
+namespace {
+
+struct SoaSpec {
+  uint32_t ttl;
+  uint32_t minimum;
+  bool validRdlen = true;
+};
+
+void Append16(nsTArray<uint8_t>& aBuf, uint16_t aValue) {
+  aBuf.AppendElement(static_cast<uint8_t>(aValue >> 8));
+  aBuf.AppendElement(static_cast<uint8_t>(aValue & 0xff));
+}
+
+void Append32(nsTArray<uint8_t>& aBuf, uint32_t aValue) {
+  aBuf.AppendElement(static_cast<uint8_t>(aValue >> 24));
+  aBuf.AppendElement(static_cast<uint8_t>((aValue >> 16) & 0xff));
+  aBuf.AppendElement(static_cast<uint8_t>((aValue >> 8) & 0xff));
+  aBuf.AppendElement(static_cast<uint8_t>(aValue & 0xff));
+}
+
+// Builds a minimal NODATA response for an AAAA query for "example.com" with the
+// given SOA records in the authority section.
+nsTArray<uint8_t> MakeNodataResponse(const nsTArray<SoaSpec>& aSoas) {
+  nsTArray<uint8_t> buf;
+  Append16(buf, 0x0000);                                 // ID
+  Append16(buf, 0x8180);                                 // flags: QR + RD + RA
+  Append16(buf, 1);                                      // QDCOUNT
+  Append16(buf, 0);                                      // ANCOUNT
+  Append16(buf, static_cast<uint16_t>(aSoas.Length()));  // NSCOUNT
+  Append16(buf, 0);                                      // ARCOUNT
+
+  // Question: example.com AAAA IN
+  const uint8_t qname[] = {7,   'e', 'x', 'a', 'm', 'p', 'l',
+                           'e', 3,   'c', 'o', 'm', 0};
+  buf.AppendElements(qname, sizeof(qname));
+  Append16(buf, TRRTYPE_AAAA);
+  Append16(buf, 0x0001);  // class IN
+
+  for (const SoaSpec& soa : aSoas) {
+    Append16(buf, 0xC00C);       // NAME: pointer to the question's qname
+    Append16(buf, TRRTYPE_SOA);  // TYPE = SOA
+    Append16(buf, 0x0001);       // class IN
+    Append32(buf, soa.ttl);      // SOA record TTL
+
+    if (soa.validRdlen) {
+      // RDATA: MNAME (root), RNAME (root), then five 32-bit fields.
+      nsTArray<uint8_t> rdata;
+      rdata.AppendElement(0);        // MNAME = root
+      rdata.AppendElement(0);        // RNAME = root
+      Append32(rdata, 1);            // SERIAL
+      Append32(rdata, 3600);         // REFRESH
+      Append32(rdata, 600);          // RETRY
+      Append32(rdata, 86400);        // EXPIRE
+      Append32(rdata, soa.minimum);  // MINIMUM
+      Append16(buf, static_cast<uint16_t>(rdata.Length()));
+      buf.AppendElements(rdata);
+    } else {
+      // RDLENGTH too short to contain a MINIMUM field.
+      const uint8_t rdata[] = {0, 0, 0, 0, 0, 0, 0, 0};
+      Append16(buf, sizeof(rdata));
+      buf.AppendElements(rdata, sizeof(rdata));
+    }
+  }
+
+  return buf;
+}
+
+Maybe<uint32_t> DecodeNegTtl(const nsTArray<SoaSpec>& aSoas) {
+  nsTArray<uint8_t> response = MakeNodataResponse(aSoas);
+
+  DNSPacket packet;
+  MOZ_RELEASE_ASSERT(
+      packet.FillBuffer([&](unsigned char aBuf[DNSPacket::MAX_SIZE]) -> int {
+        memcpy(aBuf, response.Elements(), response.Length());
+        return response.Length();
+      }) == NS_OK);
+
+  nsCString host("example.com"_ns);
+  nsCString cname;
+  DOHresp resp;
+  TypeRecordResultType typeResult = AsVariant(Nothing());
+  nsClassHashtable<nsCStringHashKey, DOHresp> additional;
+  uint32_t ttl = 0;
+
+  // A NODATA response decodes to NS_ERROR_UNKNOWN_HOST, but the SOA in the
+  // authority section is parsed regardless, so GetNegativeTTL() is populated.
+  (void)packet.Decode(host, TRRTYPE_AAAA, cname, true, resp, typeResult,
+                      additional, ttl);
+  return packet.GetNegativeTTL();
+}
+
+}  // namespace
+
+TEST(TestDNSPacket, NegativeTtlFromSOA)
+{
+  // MINIMUM smaller than the SOA record TTL: min() picks MINIMUM.
+  EXPECT_EQ(DecodeNegTtl(nsTArray<SoaSpec>{SoaSpec{600, 300}}), Some(300u));
+
+  // SOA record TTL smaller than MINIMUM: min() picks the record TTL.
+  EXPECT_EQ(DecodeNegTtl(nsTArray<SoaSpec>{SoaSpec{120, 300}}), Some(120u));
+
+  // No SOA in the authority section: nothing to derive.
+  EXPECT_EQ(DecodeNegTtl(nsTArray<SoaSpec>{}), Nothing());
+
+  // SOA with RDLENGTH too short to hold a MINIMUM: ignored.
+  EXPECT_EQ(DecodeNegTtl(nsTArray<SoaSpec>{SoaSpec{600, 300, false}}),
+            Nothing());
+
+  // Multiple SOAs: the smallest derived value wins.
+  EXPECT_EQ(
+      DecodeNegTtl(nsTArray<SoaSpec>{SoaSpec{600, 300}, SoaSpec{600, 100}}),
+      Some(100u));
 }
 
 TEST(TestDNSPacket, PaddingLengths)

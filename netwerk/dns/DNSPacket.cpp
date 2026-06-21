@@ -923,9 +923,12 @@ nsresult DNSPacket::DecodeInternal(
     if (aLen < (index + 8)) {
       return NS_ERROR_ILLEGAL_VALUE;
     }
-    index += 2;  // type
-    index += 2;  // class
-    index += 4;  // ttl
+    uint16_t TYPE = get16bit(aBuffer, index);
+    index += 2;
+    uint16_t CLASS = get16bit(aBuffer, index);
+    index += 2;
+    uint32_t TTL = get32bit(aBuffer, index);
+    index += 4;
 
     // 16 bit RDLENGTH
     if (aLen < (index + 2)) {
@@ -936,6 +939,20 @@ nsresult DNSPacket::DecodeInternal(
     if (aLen < (index + RDLENGTH)) {
       return NS_ERROR_ILLEGAL_VALUE;
     }
+
+    // RFC 2308: a negative answer carries its cache lifetime via the SOA in the
+    // authority section. The SOA RDATA ends with five 32-bit fields (SERIAL,
+    // REFRESH, RETRY, EXPIRE, MINIMUM), so MINIMUM is the trailing 4 bytes
+    // regardless of MNAME/RNAME name compression. The negative TTL is
+    // min(MINIMUM, the SOA record's own TTL); keep the smallest across SOAs.
+    if (TYPE == TRRTYPE_SOA && CLASS == kDNS_CLASS_IN && RDLENGTH >= 20) {
+      uint32_t minimum = get32bit(aBuffer, index + RDLENGTH - 4);
+      uint32_t negTtl = minimum < TTL ? minimum : TTL;
+      if (mNegativeTtl.isNothing() || negTtl < *mNegativeTtl) {
+        mNegativeTtl = Some(negTtl);
+      }
+    }
+
     index += RDLENGTH;
     LOG(("done with nsRecord now %u of %u\n", index, aLen));
     nsRecords--;

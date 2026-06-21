@@ -35,6 +35,7 @@
 #include "mozilla/Logging.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/ProfilerMarkers.h"
 #include "mozilla/StaticPrefs_network.h"
 #include "mozilla/glean/NetwerkDnsMetrics.h"
 #include "mozilla/TimeStamp.h"
@@ -582,6 +583,103 @@ void TRR::StoreIPHintAsDNSRecord(const struct SVCB& aSVCBRecord) {
                                       TRRSkippedReason::TRR_OK, this);
 }
 
+// A profiler marker summarising a completed DoH/TRR query: the host, query
+// type, outcome, response code, and (when present) the answer and SOA-derived
+// negative TTLs. Emitted only on the DoH path; native resolution has its own
+// "Native DNS Lookup" marker.
+struct TRRQueryMarker {
+  static constexpr mozilla::Span<const char> MarkerTypeName() {
+    return mozilla::MakeStringSpan("TRRQuery");
+  }
+  static void StreamJSONMarkerData(
+      mozilla::baseprofiler::SpliceableJSONWriter& aWriter,
+      const mozilla::ProfilerString8View& aHost,
+      const mozilla::ProfilerString8View& aOriginSuffix, uint16_t aType,
+      const mozilla::ProfilerString8View& aOutcome, int32_t aRcode,
+      uint32_t aTrrSkippedReason, int64_t aAnswerTtl, int64_t aNegativeTtl,
+      uint32_t aRecordCount, const mozilla::ProfilerString8View& aCname) {
+    aWriter.StringProperty("host", aHost);
+    aWriter.StringProperty("originSuffix", aOriginSuffix);
+    aWriter.IntProperty("qtype", aType);
+    aWriter.StringProperty("outcome", aOutcome);
+    aWriter.IntProperty("rcode", aRcode);
+    aWriter.IntProperty("trrSkippedReason", aTrrSkippedReason);
+    if (aAnswerTtl >= 0) {
+      aWriter.IntProperty("answerTtl", aAnswerTtl);
+    }
+    if (aNegativeTtl >= 0) {
+      aWriter.IntProperty("negativeTtl", aNegativeTtl);
+    }
+    aWriter.IntProperty("recordCount", aRecordCount);
+    if (aCname.Length()) {
+      aWriter.StringProperty("cname", aCname);
+    }
+  }
+  static mozilla::MarkerSchema MarkerTypeDisplay() {
+    using MS = mozilla::MarkerSchema;
+    MS schema{MS::Location::MarkerChart, MS::Location::MarkerTable};
+    schema.SetTableLabel("{marker.data.host} {marker.data.outcome}");
+    schema.AddKeyFormat("host", MS::Format::SanitizedString);
+    schema.AddKeyFormat("originSuffix", MS::Format::SanitizedString);
+    schema.AddKeyFormat("qtype", MS::Format::Integer);
+    schema.AddKeyFormat("outcome", MS::Format::String);
+    schema.AddKeyFormat("rcode", MS::Format::Integer);
+    schema.AddKeyFormat("trrSkippedReason", MS::Format::Integer);
+    schema.AddKeyFormat("answerTtl", MS::Format::Integer);
+    schema.AddKeyFormat("negativeTtl", MS::Format::Integer);
+    schema.AddKeyFormat("recordCount", MS::Format::Integer);
+    schema.AddKeyFormat("cname", MS::Format::SanitizedString);
+    return schema;
+  }
+};
+
+void TRR::RecordQueryMarker(bool aSucceeded,
+                            const Maybe<TimeDuration>& aFetchDuration) {
+  // Skip all the field preparation below when not profiling; this runs on
+  // every DoH resolution.
+  if (!profiler_thread_is_being_profiled_for_markers()) {
+    return;
+  }
+
+  int32_t rcode = -1;
+  Maybe<uint32_t> negTtl;
+  if (mPacket) {
+    auto rc = mPacket->GetRCode();
+    if (rc.isOk()) {
+      rcode = rc.unwrap();
+    }
+    negTtl = mPacket->GetNegativeTTL();
+  }
+
+  uint32_t recordCount = 0;
+  if (mType == TRRTYPE_A || mType == TRRTYPE_AAAA) {
+    recordCount = mDNS.mAddresses.Length();
+  } else if (mResult.is<TypeRecordHTTPSSVC>()) {
+    recordCount = mResult.as<TypeRecordHTTPSSVC>().Length();
+  } else if (mResult.is<TypeRecordTxt>()) {
+    recordCount = mResult.as<TypeRecordTxt>().Length();
+  }
+
+  const char* outcome = aSucceeded ? (recordCount ? "success" : "nodata")
+                                   : (rcode == 3 ? "nxdomain" : "failure");
+
+  int64_t answerTtl = mTTL == UINT32_MAX ? -1 : static_cast<int64_t>(mTTL);
+  int64_t negativeTtl = negTtl ? static_cast<int64_t>(*negTtl) : -1;
+
+  TimeStamp now = TimeStamp::Now();
+  MarkerTiming timing = aFetchDuration
+                            ? MarkerTiming::Interval(now - *aFetchDuration, now)
+                            : MarkerTiming::InstantAt(now);
+
+  profiler_add_marker(
+      "TRRQuery", geckoprofiler::category::NETWORK,
+      MarkerOptions(std::move(timing)), TRRQueryMarker{}, mHost, mOriginSuffix,
+      static_cast<uint16_t>(mType),
+      mozilla::ProfilerString8View::WrapNullTerminatedString(outcome), rcode,
+      static_cast<uint32_t>(mTRRSkippedReason), answerTtl, negativeTtl,
+      recordCount, mCname);
+}
+
 nsresult TRR::ReturnData(nsIChannel* aChannel) {
   Maybe<TimeDuration> trrFetchDuration;
   Maybe<TimeDuration> trrFetchDurationNetworkOnly;
@@ -599,6 +697,8 @@ nsresult TRR::ReturnData(nsIChannel* aChannel) {
       trrFetchDurationNetworkOnly = Some(end - start);
     }
   }
+
+  RecordQueryMarker(/* aSucceeded */ true, trrFetchDuration);
 
   if (mType != TRRTYPE_TXT && mType != TRRTYPE_HTTPSSVC) {
     // create and populate an AddrInfo instance to pass on
@@ -640,6 +740,12 @@ nsresult TRR::FailData(nsresult error) {
 
   // If we didn't record a reason until now, record a default one.
   RecordReason(TRRSkippedReason::TRR_FAILED);
+
+  if (mRec && mPacket) {
+    mRec->mNegativeDnsTtl = mPacket->GetNegativeTTL();
+  }
+
+  RecordQueryMarker(/* aSucceeded */ false, Nothing());
 
   if (mType == TRRTYPE_TXT || mType == TRRTYPE_HTTPSSVC) {
     TypeRecordResultType empty(Nothing{});

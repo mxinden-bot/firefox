@@ -61,9 +61,13 @@
 using namespace mozilla;
 using namespace mozilla::net;
 
-// None of our implementations expose a TTL for negative responses, so we use a
-// constant always.
+// Fallback negative-response lifetime, used when the response carried no
+// SOA-derived TTL (e.g. native resolution, which exposes no SOA).
 static const unsigned int NEGATIVE_RECORD_LIFETIME = 60;
+
+// Upper bound applied to an SOA-derived (RFC 2308) negative TTL so that a large
+// zone SOA MINIMUM cannot pin a negative answer for an excessive time.
+static const unsigned int MAX_NEGATIVE_RECORD_LIFETIME = 3600;
 
 //----------------------------------------------------------------------------
 
@@ -1255,9 +1259,16 @@ void nsHostResolver::PrepareRecordExpirationAddrRecord(
   MOZ_ASSERT(((bool)rec->addr_info) != rec->negative);
   mQueue.mLock.AssertCurrentThreadOwns();
   if (!rec->addr_info) {
-    rec->SetExpiration(TimeStamp::NowLoRes(), NEGATIVE_RECORD_LIFETIME, 0);
+    unsigned int negLifetime = NEGATIVE_RECORD_LIFETIME;
+    if (rec->mNegativeDnsTtl) {
+      negLifetime = *rec->mNegativeDnsTtl < MAX_NEGATIVE_RECORD_LIFETIME
+                        ? *rec->mNegativeDnsTtl
+                        : MAX_NEGATIVE_RECORD_LIFETIME;
+    }
+    rec->mNegativeDnsTtl.reset();
+    rec->SetExpiration(TimeStamp::NowLoRes(), negLifetime, 0);
     LOG(("Caching host [%s] negative record for %u seconds.\n", rec->host.get(),
-         NEGATIVE_RECORD_LIFETIME));
+         negLifetime));
     return;
   }
 
@@ -1268,6 +1279,7 @@ void nsHostResolver::PrepareRecordExpirationAddrRecord(
     lifetime = rec->addr_info->TTL();
   }
 
+  rec->mNegativeDnsTtl.reset();
   rec->SetExpiration(TimeStamp::NowLoRes(), lifetime, grace);
   LOG(("Caching host [%s] record for %u seconds (grace %d).", rec->host.get(),
        lifetime, grace));
@@ -1649,9 +1661,15 @@ nsHostResolver::LookupStatus nsHostResolver::CompleteLookupByTypeLocked(
     }
     LOG(("nsHostResolver::CompleteLookupByType record %p [%s] status %x\n",
          typeRec.get(), typeRec->host.get(), (unsigned int)status));
-    typeRec->SetExpiration(
-        TimeStamp::NowLoRes(),
-        StaticPrefs::network_dns_negative_ttl_for_type_record(), 0);
+    unsigned int negTtl =
+        StaticPrefs::network_dns_negative_ttl_for_type_record();
+    if (typeRec->mNegativeDnsTtl) {
+      negTtl = *typeRec->mNegativeDnsTtl < MAX_NEGATIVE_RECORD_LIFETIME
+                   ? *typeRec->mNegativeDnsTtl
+                   : MAX_NEGATIVE_RECORD_LIFETIME;
+    }
+    typeRec->mNegativeDnsTtl.reset();
+    typeRec->SetExpiration(TimeStamp::NowLoRes(), negTtl, 0);
     MOZ_ASSERT(aResult.is<TypeRecordEmpty>());
     status = NS_ERROR_UNKNOWN_HOST;
     typeRec->negative = true;

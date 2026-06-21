@@ -92,6 +92,10 @@ class TRR : public Runnable,
   // other error codes must be used. This distinction is important for the
   // subsequent logic to separate the error reasons.
   nsresult FailData(nsresult error);
+  // Emit a TRRQuery profiler marker summarising this (DoH) query.
+  void RecordQueryMarker(
+      bool aSucceeded,
+      const mozilla::Maybe<mozilla::TimeDuration>& aFetchDuration);
   nsresult On200Response(nsIChannel* aChannel);
   nsresult FollowCname(nsIChannel* aChannel);
 
