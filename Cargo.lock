@@ -2765,6 +2765,9 @@ name = "gecko_tracing"
 version = "0.1.0"
 dependencies = [
  "error-support",
+ "gecko-profiler",
+ "gecko_logger",
+ "log",
  "tracing",
  "tracing-subscriber",
  "tracing-support",
