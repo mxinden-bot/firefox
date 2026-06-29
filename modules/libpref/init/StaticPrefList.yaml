@@ -16784,7 +16784,7 @@
 # to the connection phase (ms).
 - name: network.http.happy_eyeballs_resolution_delay
   type: RelaxedAtomicUint32
-  value: 50
+  value: 25
   mirror: always
 
 # The time to wait between successive connection attempts (ms).
