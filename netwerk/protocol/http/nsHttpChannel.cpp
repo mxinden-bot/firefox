@@ -27,6 +27,7 @@
 #include "mozilla/Components.h"
 #include "mozilla/ContentBlockingAllowList.h"
 #include "mozilla/DebugOnly.h"
+#include "mozilla/ErrorNames.h"
 #include "mozilla/FlowMarkers.h"
 #include "mozilla/NullPrincipal.h"
 #include "mozilla/PerfStats.h"
@@ -8974,6 +8975,13 @@ void nsHttpChannel::RecordOnStartTelemetry(nsresult aStatus,
   mozilla::glean::networking::http_channel_onstart_status
       .Get(NS_SUCCEEDED(aStatus) ? "successful"_ns : "fail"_ns)
       .Add(1);
+
+  if (NS_FAILED(aStatus)) {
+    const char* errorName = mozilla::GetStaticErrorName(aStatus);
+    mozilla::glean::networking::http_channel_onstart_error
+        .Get(nsDependentCString(errorName ? errorName : "unknown"))
+        .Add(1);
+  }
 
   if (mTransaction) {
     glean::networking::http3_channel_onstart_success

@@ -2169,6 +2169,24 @@ networking:
       - successful
       - fail
 
+  http_channel_onstart_error:
+    type: labeled_counter
+    description: >
+      For HTTP channels that failed to start (OnStartRequest delivered a failure
+      status), the nsresult network error name, for example NS_ERROR_NET_RESET,
+      NS_ERROR_NET_TIMEOUT or NS_ERROR_CONNECTION_REFUSED. Breaks the "fail"
+      bucket of http_channel_onstart_status down by cause.
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=TODO
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=TODO
+    data_sensitivity:
+      - technical
+    notification_emails:
+      - necko@mozilla.com
+      - mail@max-inden.de
+    expires: never
+
   http3_channel_onstart_success:
     type: dual_labeled_counter
     description: >
