@@ -304,7 +304,7 @@ impl HappyEyeballs {
         }
 
         self.profiler.dns_response(id, &addrs);
-        self.metrics.dns_response(id, is_trr);
+        self.metrics.dns_response(id, !addrs.is_empty(), is_trr);
 
         let result = happy_eyeballs::DnsResult::A(Ok(addrs));
         let input = happy_eyeballs::Input::DnsResult { id, result };
@@ -335,7 +335,7 @@ impl HappyEyeballs {
         }
 
         self.profiler.dns_response(id, &addrs);
-        self.metrics.dns_response(id, is_trr);
+        self.metrics.dns_response(id, !addrs.is_empty(), is_trr);
 
         let result = happy_eyeballs::DnsResult::Aaaa(Ok(addrs));
         let input = happy_eyeballs::Input::DnsResult { id, result };
