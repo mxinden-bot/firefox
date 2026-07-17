@@ -58,6 +58,19 @@ fn get_level_for_module<'a>(
     return (key, false, LevelFilter::Off);
 }
 
+/// Returns whether `target` is enabled at `level` according to the MOZ_LOG
+/// module levels. This is the Rust-visible equivalent of `MOZ_LOG_TEST`, for
+/// callers (such as the tracing layer) that need to gate work without going
+/// through a `log::Record`.
+pub fn log_enabled(target: &str, level: Level) -> bool {
+    if !LOGGING_ACTIVE.load(Ordering::Relaxed) {
+        return false;
+    }
+    let map = LOG_MODULE_MAP.read().unwrap();
+    let (_, _, filter) = get_level_for_module(&map, target);
+    filter >= level
+}
+
 /// This function takes a record to maybe log to Gecko.
 /// It returns true if the record was handled by Gecko's logging, and false
 /// otherwise.
