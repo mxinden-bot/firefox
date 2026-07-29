@@ -139,6 +139,34 @@ export class Server {
         }),
       ];
     }
+
+    // EXPERIMENT: when a connect entry exists but no masque entry does,
+    // synthesize a MASQUE connect-udp protocol and make it primary, so the
+    // outer hop to the VPN server is a real connect-udp tunnel over HTTP/3
+    // instead of a plain CONNECT. Gated on network.http.http3.enable: with
+    // HTTP/3 disabled the synthesized entry is omitted and only the plain
+    // CONNECT entry remains, forcing an HTTP/2 CONNECT proxy hop. The template
+    // is the RFC 9298 default well-known URI the proxy serves; target_host and
+    // target_port are expanded by the necko URI-template glue at request time.
+    // serverToProxyInfo uses reduceRight, so the first entry becomes the
+    // outermost/primary proxyInfo.
+    const hasMasque = this.protocols.some(p => p.name === "masque");
+    const connect = this.protocols.find(p => p.name === "connect");
+    if (
+      Services.prefs.getBoolPref("network.http.http3.enable", false) &&
+      !hasMasque &&
+      connect
+    ) {
+      this.protocols.unshift(
+        new MasqueProtocol({
+          name: "masque",
+          host: connect.host,
+          port: connect.port,
+          templateString:
+            "/.well-known/masque/udp/{target_host}/{target_port}/",
+        })
+      );
+    }
   }
 }
 
