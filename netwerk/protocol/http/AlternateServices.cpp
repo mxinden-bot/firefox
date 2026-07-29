@@ -910,57 +910,14 @@ void AltSvcCache::UpdateAltServiceMapping(
     }
   }
 
-  // start new validation, but don't overwrite a valid existing mapping unless
-  // this completes successfully
+  // EXPERIMENT (Bug 2005211): skip Alt-Svc route validation entirely. The
+  // speculative validation transaction cannot be driven through an HTTPS-proxy
+  // CONNECT tunnel, so an h3 proxy route would otherwise never be marked valid
+  // and we fall back to HTTP/2. Mark the mapping validated immediately instead
+  // of running a speculative connect.
   MOZ_ASSERT(!map->Validated());
-  if (!existing) {
-    map->Sync();
-  } else {
-    map->SetSyncOnlyOnSuccess(true);
-  }
-
-  RefPtr<nsHttpConnectionInfo> ci;
-  map->GetConnectionInfo(getter_AddRefs(ci), pi, originAttributes);
-  caps |= ci->GetAnonymous() ? NS_HTTP_LOAD_ANONYMOUS : 0;
-  caps |= NS_HTTP_ERROR_SOFTLY;
-
-  if (StaticPrefs::network_http_happy_eyeballs_enabled()) {
-    ci->SetHappyEyeballsEnabled(true);
-    // Validating an h3 alternate must establish an h3 connection; don't let
-    // Happy Eyeballs race h1/h2 and settle on a non-h3 connection.
-    if (map->IsHttp3()) {
-      ci->SetHttp3Only(true);
-    }
-  }
-
-  MOZ_ASSERT(map->HTTPS());
-  LOG(
-      ("AltSvcCache::UpdateAltServiceMapping %p validation via "
-       "speculative connect started http3=%d\n",
-       this, map->IsHttp3()));
-  nsCOMPtr<nsIInterfaceRequestor> callbacks = new AltSvcOverride(aCallbacks);
-  RefPtr<AltSvcMappingValidator> validator = new AltSvcMappingValidator(map);
-  RefPtr<SpeculativeTransaction> transaction;
-  if (nsIOService::UseSocketProcess()) {
-    RefPtr<AltSvcTransactionParent> parent =
-        new AltSvcTransactionParent(ci, aCallbacks, caps, validator);
-    if (!parent->Init()) {
-      return;
-    }
-    transaction = parent;
-  } else {
-    transaction = new AltSvcTransaction<AltSvcMappingValidator>(
-        ci, aCallbacks, caps, validator, map->IsHttp3());
-  }
-
-  nsresult rv =
-      gHttpHandler->SpeculativeConnect(ci, callbacks, caps, transaction);
-  if (NS_FAILED(rv)) {
-    LOG(
-        ("AltSvcCache::UpdateAltServiceMapping %p "
-         "speculative connect failed with code %08x\n",
-         this, static_cast<uint32_t>(rv)));
-  }
+  map->SetValidated(true);
+  map->Sync();
 }
 
 already_AddRefed<AltSvcMapping> AltSvcCache::GetAltServiceMapping(
