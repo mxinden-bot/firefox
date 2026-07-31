@@ -271,6 +271,16 @@ export class IPPChannelFilter {
       return false;
     }
 
+    // EXPERIMENT: a loopback/local destination can never be reached through the
+    // proxy, so keep it direct regardless of how the loading principal
+    // classifies. This lets a page hosted on 127.0.0.1 be proxied for its
+    // remote subresources while its own document load stays direct.
+    const uriPrincipal =
+      Services.scriptSecurityManager.getChannelURIPrincipal(channel);
+    if (lazy.IPPExceptionsManager.isLocalPrincipal(uriPrincipal)) {
+      return false;
+    }
+
     const principal = this.#principalForChannel(channel);
     const rule = lazy.IPPExceptionsManager.getPrincipalRule(principal);
     if (rule === lazy.IPPPrincipalRules.INCLUDED) {
