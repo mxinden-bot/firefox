@@ -316,6 +316,17 @@ class ExceptionsManager extends EventTarget {
   }
 
   /**
+   * Instance wrapper around the static isLocal, for callers that only hold the
+   * exported singleton (e.g. IPPChannelFilter).
+   *
+   * @param {nsIPrincipal} principal
+   * @returns {boolean} True if the principal is a loopback host or a local IP.
+   */
+  isLocalPrincipal(principal) {
+    return ExceptionsManager.isLocal(principal);
+  }
+
+  /**
    * Classifies a principal as included/excluded/default for the proxy.
    *
    * This is the single source of truth shared by the channel filter and the UI.
@@ -343,9 +354,11 @@ class ExceptionsManager extends EventTarget {
       ) {
         return IPPPrincipalRules.EXCLUDED;
       }
-      if (ExceptionsManager.isLocal(principal)) {
-        return IPPPrincipalRules.EXCLUDED;
-      }
+      // EXPERIMENT: loopback/local principals are intentionally NOT
+      // short-circuited to EXCLUDED here, so a page served from 127.0.0.1 (the
+      // fireflare measurement harness) has its remote subresources proxied.
+      // Loopback *destinations* are kept direct by the destination guard in
+      // IPPChannelFilter.shouldProxy, so the local server stays reachable.
       // Infrastructure origins the VPN itself depends on (guardian endpoint,
       // captive detection). These must beat inclusion.
       if (uri && this.#excludedOrigins.matches(uri)) {
