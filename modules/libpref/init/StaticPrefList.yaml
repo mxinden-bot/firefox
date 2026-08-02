@@ -16510,8 +16510,10 @@
   # See https://bugzilla.mozilla.org/show_bug.cgi?id=1979279 for details.
   value: 1
 #else
-  # Current industry standard. Likely worth tuning.
-  value: 10
+  # The Linux kernel caps a single GSO send at UDP_MAX_SEGMENTS (64), which
+  # quinn-udp reports via max_gso_segments(). Match that limit so the OS
+  # capability, not this pref, is the effective ceiling.
+  value: 64
 #endif
   mirror: always
   rust: true
