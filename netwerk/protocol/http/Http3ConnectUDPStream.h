@@ -94,6 +94,10 @@ class Http3ConnectUDPStream final : public Http3TunnelStreamBase,
   nsCOMPtr<nsIEventTarget> mTarget;
   mozilla::Queue<UniquePtr<UDPPayload>> mReceivedData;
   mozilla::Queue<UniquePtr<UDPPayload>> mOutputData;
+  // An HTTP/3 datagram whose send was refused because the outgoing QUIC
+  // datagram queue was full. Retried before mOutputData once space is available
+  // again.
+  UniquePtr<UDPPayload> mBlockedDatagram;
   uint64_t mTrackingId{1};
 
   bool mIsTRRServiceChannel{false};

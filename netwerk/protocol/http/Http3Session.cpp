@@ -1155,6 +1155,17 @@ nsresult Http3Session::ProcessEvents() {
             break;
         }
       } break;
+      case Http3Event::Tag::OutgoingDatagramSpaceAvailable: {
+        LOG(("Http3Session::ProcessEvents - OutgoingDatagramSpaceAvailable"));
+        // The outgoing QUIC datagram queue has room again. Re-drive every
+        // connect-udp stream that was blocked so it can flush its pending
+        // HTTP/3 datagrams.
+        nsTArray<RefPtr<Http3ConnectUDPStream>> blocked =
+            std::move(mDatagramBlocked);
+        for (const auto& stream : blocked) {
+          StreamHasDataToWrite(stream);
+        }
+      } break;
       default:
         break;
     }
@@ -3166,15 +3177,25 @@ nsresult Http3Session::GetWebTransportSessionProtocol(uint64_t aSessionId,
   return mHttp3Connection->GetWebTransportSessionProtocol(aSessionId,
                                                           aProtocol);
 }
-void Http3Session::SendHTTPDatagram(uint64_t aStreamId,
+bool Http3Session::SendHTTPDatagram(uint64_t aStreamId,
                                     nsTArray<uint8_t>& aData,
                                     uint64_t aTrackingId) {
   LOG(("Http3Session::SendHTTPDatagram %p length=%zu aTrackingId=%" PRIx64,
        this, aData.Length(), aTrackingId));
   // Connect-UDP (MASQUE) doesn't use WebTransport send groups or send order,
   // so pass 0 for both (0 = null sendGroup, 0 = default sendOrder).
-  (void)mHttp3Connection->ConnectUdpSendDatagram(aStreamId, aData, aTrackingId,
-                                                 0, 0);
+  nsresult rv = mHttp3Connection->ConnectUdpSendDatagram(aStreamId, aData,
+                                                         aTrackingId, 0, 0);
+  // NS_BASE_STREAM_WOULD_BLOCK means the outgoing QUIC datagram queue is full;
+  // the HTTP/3 datagram was not queued and the caller should back off.
+  return rv != NS_BASE_STREAM_WOULD_BLOCK;
+}
+
+void Http3Session::DatagramSendBlocked(Http3ConnectUDPStream* aStream) {
+  MOZ_ASSERT(OnSocketThread(), "not on socket thread");
+  if (aStream && !mDatagramBlocked.Contains(aStream)) {
+    mDatagramBlocked.AppendElement(aStream);
+  }
 }
 
 void Http3Session::SetSendOrder(Http3StreamBase* aStream, int64_t aSendOrder) {
