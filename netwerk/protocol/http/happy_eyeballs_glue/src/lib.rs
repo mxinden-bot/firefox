@@ -307,7 +307,11 @@ impl HappyEyeballs {
         self.metrics.dns_response(id, !addrs.is_empty(), is_trr);
 
         let result = happy_eyeballs::DnsResult::A(Ok(addrs));
-        let input = happy_eyeballs::Input::DnsResult { id, result };
+        let input = happy_eyeballs::Input::DnsResult {
+            id,
+            result,
+            stale: false,
+        };
         self.inner.process_input(input, Instant::now());
 
         NS_OK
@@ -338,7 +342,11 @@ impl HappyEyeballs {
         self.metrics.dns_response(id, !addrs.is_empty(), is_trr);
 
         let result = happy_eyeballs::DnsResult::Aaaa(Ok(addrs));
-        let input = happy_eyeballs::Input::DnsResult { id, result };
+        let input = happy_eyeballs::Input::DnsResult {
+            id,
+            result,
+            stale: false,
+        };
         self.inner.process_input(input, Instant::now());
 
         NS_OK
@@ -422,7 +430,11 @@ impl HappyEyeballs {
         self.metrics.dns_response_https(id, &infos, is_trr);
 
         let result = happy_eyeballs::DnsResult::Https(Ok(infos));
-        let input = happy_eyeballs::Input::DnsResult { id, result };
+        let input = happy_eyeballs::Input::DnsResult {
+            id,
+            result,
+            stale: false,
+        };
         self.inner.process_input(input, Instant::now());
 
         NS_OK
@@ -478,7 +490,15 @@ impl HappyEyeballs {
                 id,
                 hostname,
                 record_type,
+                allow_stale,
             }) => {
+                // Optimistic DNS is not wired up on the C++ side: DnsResult
+                // inputs are always reported fresh, so happy-eyeballs never
+                // schedules a revalidation query that forbids a stale answer.
+                debug_assert!(
+                    allow_stale,
+                    "optimistic DNS is not wired up on the C++ side"
+                );
                 self.profiler.dns_query_started(id, record_type);
                 self.metrics.dns_query_started(id, record_type);
                 let hostname: String = hostname.into();
