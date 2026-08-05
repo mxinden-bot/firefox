@@ -502,6 +502,12 @@ nsresult AddrHostRecord::GetLastUpdate(mozilla::TimeStamp* aLastUpdate) {
   return NS_OK;
 }
 
+nsresult AddrHostRecord::GetFromStaleCache(bool* aResult) {
+  NS_ENSURE_ARG(aResult);
+  *aResult = CheckExpiration(mozilla::TimeStamp::NowLoRes()) == EXP_GRACE;
+  return NS_OK;
+}
+
 //----------------------------------------------------------------------------
 // TypeHostRecord
 //----------------------------------------------------------------------------

@@ -212,6 +212,14 @@ ChildDNSRecord::GetLastUpdate(TimeStamp* aLastUpdate) {
   return NS_OK;
 }
 
+NS_IMETHODIMP
+ChildDNSRecord::GetFromStaleCache(bool* aResult) {
+  // Grace-period status is not carried across the IPC boundary, so a record
+  // resolved in the socket process is never treated as stale here.
+  *aResult = false;
+  return NS_OK;
+}
+
 class ChildDNSByTypeRecord : public nsIDNSByTypeRecord,
                              public nsIDNSTXTRecord,
                              public nsIDNSHTTPSSVCRecord,

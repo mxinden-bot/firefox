@@ -35,6 +35,8 @@ void DnsMetadata::Fill(nsIDNSAddrRecord* aRecord) {
   aRecord->GetTrrFetchDurationNetworkOnly(&mTrrFetchDurationNetworkOnly);
   aRecord->GetEffectiveTRRMode(&mEffectiveTRRMode);
   aRecord->GetTrrSkipReason(&mTrrSkipReason);
+
+  aRecord->GetFromStaleCache(&mStale);
 }
 
 class SingleDNSAddrRecord final : public nsIDNSAddrRecord {
@@ -50,7 +52,8 @@ class SingleDNSAddrRecord final : public nsIDNSAddrRecord {
         mTrrFetchDuration(aMetadata.mTrrFetchDuration),
         mTrrFetchDurationNetworkOnly(aMetadata.mTrrFetchDurationNetworkOnly),
         mEffectiveTRRMode(aMetadata.mEffectiveTRRMode),
-        mTrrSkipReason(aMetadata.mTrrSkipReason) {
+        mTrrSkipReason(aMetadata.mTrrSkipReason),
+        mStale(aMetadata.mStale) {
     LOG(("SingleDNSAddrRecord ctor:%p mIsTRR=%d mEffectiveTRRMode=%d", this,
          mIsTRR, static_cast<uint32_t>(mEffectiveTRRMode)));
   }
@@ -69,6 +72,7 @@ class SingleDNSAddrRecord final : public nsIDNSAddrRecord {
   nsITRRSkipReason::value mTrrSkipReason = nsITRRSkipReason::TRR_UNSET;
   uint32_t mTTL = 60;
   mozilla::TimeStamp mLastUpdate = TimeStamp::Now();
+  bool mStale = false;
   bool mDone = false;
 };
 
@@ -148,6 +152,12 @@ SingleDNSAddrRecord::GetTtl(uint32_t* aTtl) {
 NS_IMETHODIMP
 SingleDNSAddrRecord::GetLastUpdate(mozilla::TimeStamp* aLastUpdate) {
   *aLastUpdate = mLastUpdate;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+SingleDNSAddrRecord::GetFromStaleCache(bool* aResult) {
+  *aResult = mStale;
   return NS_OK;
 }
 

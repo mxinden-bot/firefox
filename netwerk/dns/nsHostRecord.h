@@ -301,6 +301,7 @@ class AddrHostRecord final : public nsHostRecord {
 
   nsresult GetTtl(uint32_t* aResult);
   nsresult GetLastUpdate(mozilla::TimeStamp* aLastUpdate);
+  nsresult GetFromStaleCache(bool* aResult);
 
  private:
   friend class nsHostResolver;

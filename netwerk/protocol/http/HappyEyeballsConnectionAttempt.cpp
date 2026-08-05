@@ -546,7 +546,8 @@ nsresult HappyEyeballsConnectionAttempt::ProcessHappyEyeballsOutput() {
         LOG(("HappyEyeballsEvent::Tag::SendDnsQuery id=%" PRIu64 " hostname=%s",
              event.send_dns_query.id, dnsHostname.get()));
         DNSLookup(event.send_dns_query.record_type,
-                  SetupDnsFlags(event.send_dns_query.record_type),
+                  SetupDnsFlags(event.send_dns_query.record_type,
+                                event.send_dns_query.allow_stale),
                   event.send_dns_query.id, dnsHostname);
         break;
       }
@@ -639,7 +640,7 @@ nsresult HappyEyeballsConnectionAttempt::ProcessHappyEyeballsOutput() {
 
 Result<nsIDNSService::DNSFlags, nsresult>
 HappyEyeballsConnectionAttempt::SetupDnsFlags(
-    happy_eyeballs::DnsRecordType aType) {
+    happy_eyeballs::DnsRecordType aType, bool aAllowStale) {
   LOG(("HappyEyeballsConnectionAttempt::SetupDnsFlags [this=%p aType=%d] ",
        this, static_cast<uint32_t>(aType)));
 
@@ -647,6 +648,14 @@ HappyEyeballsConnectionAttempt::SetupDnsFlags(
 
   if (mCaps & NS_HTTP_REFRESH_DNS) {
     dnsFlags = nsIDNSService::RESOLVE_BYPASS_CACHE;
+  }
+
+  // Optimistic DNS: happy-eyeballs sends this query to revalidate an answer it
+  // received from a stale (expired) cache entry, so it must not be served from
+  // that same stale entry. Bypass the cache and invalidate the stale entry.
+  if (!aAllowStale) {
+    dnsFlags |= nsIDNSService::RESOLVE_BYPASS_CACHE |
+                nsIDNSService::RESOLVE_REFRESH_CACHE;
   }
 
   // Fallback attempt after TRR-resolved addresses failed to connect: bypass TRR
@@ -1968,7 +1977,7 @@ nsresult HappyEyeballsConnectionAttempt::OnARecord(nsIDNSRecord* aRecord,
     }
     nsTArray<NetAddr> emptyArray;
     rv = happy_eyeballs_process_dns_response_a(mHappyEyeballs, aId, &emptyArray,
-                                               mDnsMetadata.mIsTRR);
+                                               mDnsMetadata.mIsTRR, false);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -1994,7 +2003,8 @@ nsresult HappyEyeballsConnectionAttempt::OnARecord(nsIDNSRecord* aRecord,
   }
 
   rv = happy_eyeballs_process_dns_response_a(
-      mHappyEyeballs, aId, &ipv4Addresses, mDnsMetadata.mIsTRR);
+      mHappyEyeballs, aId, &ipv4Addresses, mDnsMetadata.mIsTRR,
+      mDnsMetadata.mStale);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -2025,7 +2035,7 @@ nsresult HappyEyeballsConnectionAttempt::OnAAAARecord(nsIDNSRecord* aRecord,
     }
     nsTArray<NetAddr> emptyArray;
     rv = happy_eyeballs_process_dns_response_aaaa(
-        mHappyEyeballs, aId, &emptyArray, mDnsMetadata.mIsTRR);
+        mHappyEyeballs, aId, &emptyArray, mDnsMetadata.mIsTRR, false);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -2051,7 +2061,8 @@ nsresult HappyEyeballsConnectionAttempt::OnAAAARecord(nsIDNSRecord* aRecord,
   }
 
   rv = happy_eyeballs_process_dns_response_aaaa(
-      mHappyEyeballs, aId, &ipv6Addresses, mDnsMetadata.mIsTRR);
+      mHappyEyeballs, aId, &ipv6Addresses, mDnsMetadata.mIsTRR,
+      mDnsMetadata.mStale);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -2113,7 +2124,7 @@ nsresult HappyEyeballsConnectionAttempt::OnHTTPSRecord(nsIDNSRecord* aRecord,
   if (!httpsRecord || NS_FAILED(status)) {
     nsTArray<happy_eyeballs::ServiceInfo> emptyArray;
     (void)happy_eyeballs_process_dns_response_https(
-        mHappyEyeballs, aId, &emptyArray, mDnsMetadata.mIsTRR);
+        mHappyEyeballs, aId, &emptyArray, mDnsMetadata.mIsTRR, false);
     return ProcessHappyEyeballsOutput();
   }
 
@@ -2136,8 +2147,8 @@ nsresult HappyEyeballsConnectionAttempt::OnHTTPSRecord(nsIDNSRecord* aRecord,
   (void)httpsRecord->GetRecords(svcbRecords);
   if (svcbRecords.IsEmpty()) {
     nsTArray<happy_eyeballs::ServiceInfo> emptyArray;
-    (void)happy_eyeballs_process_dns_response_https(mHappyEyeballs, aId,
-                                                    &emptyArray, httpsIsTRR);
+    (void)happy_eyeballs_process_dns_response_https(
+        mHappyEyeballs, aId, &emptyArray, httpsIsTRR, false);
     return ProcessHappyEyeballsOutput();
   }
 
@@ -2223,8 +2234,8 @@ nsresult HappyEyeballsConnectionAttempt::OnHTTPSRecord(nsIDNSRecord* aRecord,
     serviceInfos.AppendElement(std::move(svcInfo));
   }
 
-  (void)happy_eyeballs_process_dns_response_https(mHappyEyeballs, aId,
-                                                  &serviceInfos, httpsIsTRR);
+  (void)happy_eyeballs_process_dns_response_https(
+      mHappyEyeballs, aId, &serviceInfos, httpsIsTRR, false);
   return ProcessHappyEyeballsOutput();
 }
 
