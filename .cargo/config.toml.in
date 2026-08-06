@@ -115,13 +115,13 @@ git = "https://github.com/mozilla/mp4parse-rust"
 rev = "8a49a0769764152022bf14a8253bcde1971a75df"
 replace-with = "vendored-sources"
 
-[source."git+https://github.com/mozilla/neqo?tag=v0.30.1"]
-git = "https://github.com/mozilla/neqo"
-tag = "v0.30.1"
-replace-with = "vendored-sources"
-
 [source."git+https://github.com/mozilla/nss-rs"]
 git = "https://github.com/mozilla/nss-rs"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/mxinden-bot/neqo?rev=23cebec37c69cb699344ed0de85dda1fd2368438"]
+git = "https://github.com/mxinden-bot/neqo"
+rev = "23cebec37c69cb699344ed0de85dda1fd2368438"
 replace-with = "vendored-sources"
 
 [source."git+https://github.com/rust-minidump/minidump-writer.git?rev=45f5459790d264098346343f0ad58d008c386fa5"]

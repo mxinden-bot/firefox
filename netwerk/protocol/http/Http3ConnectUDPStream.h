@@ -27,6 +27,8 @@ class UDPPayload final {
 
   nsTArray<uint8_t> TakeData() { return std::move(mData); }
 
+  nsTArray<uint8_t>& Data() { return mData; }
+
  private:
   nsTArray<uint8_t> mData;
 };

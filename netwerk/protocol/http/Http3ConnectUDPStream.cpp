@@ -82,8 +82,20 @@ nsresult Http3ConnectUDPStream::OnProcessDatagram() {
   LOG(("Http3ConnectUDPStream::OnProcessDatagram %p", this));
 
   while (!mOutputData.IsEmpty()) {
-    nsTArray<uint8_t> data = mOutputData.Pop()->TakeData();
-    mSession->SendHTTPDatagram(mStreamId, data, mTrackingId++);
+    // Peek, don't pop: SendHTTPDatagram borrows the bytes (neqo copies them
+    // internally) and does not touch mOutputData, so FirstElement() stays valid
+    // across the call and a refused datagram survives at the head for the next
+    // drain.
+    nsTArray<uint8_t>& data = mOutputData.FirstElement()->Data();
+    if (!mSession->SendHTTPDatagram(mStreamId, data, mTrackingId)) {
+      // neqo's outgoing QUIC datagram queue is full. Leave the HTTP/3 datagram
+      // at the head of the queue and stop; we resume draining when the session
+      // re-drives us on Http3Event::OutgoingDatagramSpaceAvailable.
+      mSession->DatagramSendBlocked(this);
+      return NS_OK;
+    }
+    mOutputData.Pop();
+    mTrackingId++;
   }
   return NS_OK;
 }

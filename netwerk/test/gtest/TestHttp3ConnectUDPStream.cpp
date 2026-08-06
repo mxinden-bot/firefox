@@ -44,9 +44,10 @@ class Http3SessionStub final : public Http3SessionBase {
 
   void CloseSendingSide(uint64_t aStreamId) override {}
 
-  void SendHTTPDatagram(uint64_t aStreamId, nsTArray<uint8_t>& aData,
+  bool SendHTTPDatagram(uint64_t aStreamId, nsTArray<uint8_t>& aData,
                         uint64_t aTrackingId) override {
     mOutputData.AppendElements(aData);
+    return true;
   }
 
   nsresult SendRequestBody(uint64_t aStreamId, const char* buf, uint32_t count,
