@@ -81,9 +81,29 @@ bool Http3ConnectUDPStream::OnActivated() {
 nsresult Http3ConnectUDPStream::OnProcessDatagram() {
   LOG(("Http3ConnectUDPStream::OnProcessDatagram %p", this));
 
+  // Retry an HTTP/3 datagram that was previously refused, then drain the queue.
+  // On the first refusal, hold the datagram and stop: neqo has told us its
+  // outgoing QUIC datagram queue is full. We resume when the session re-drives
+  // us on Http3Event::OutgoingDatagramSpaceAvailable.
+  if (mBlockedDatagram) {
+    nsTArray<uint8_t> data = mBlockedDatagram->TakeData();
+    if (!mSession->SendHTTPDatagram(mStreamId, data, mTrackingId)) {
+      mBlockedDatagram = MakeUnique<UDPPayload>(std::move(data));
+      mSession->DatagramSendBlocked(this);
+      return NS_OK;
+    }
+    mBlockedDatagram = nullptr;
+    mTrackingId++;
+  }
+
   while (!mOutputData.IsEmpty()) {
     nsTArray<uint8_t> data = mOutputData.Pop()->TakeData();
-    mSession->SendHTTPDatagram(mStreamId, data, mTrackingId++);
+    if (!mSession->SendHTTPDatagram(mStreamId, data, mTrackingId)) {
+      mBlockedDatagram = MakeUnique<UDPPayload>(std::move(data));
+      mSession->DatagramSendBlocked(this);
+      return NS_OK;
+    }
+    mTrackingId++;
   }
   return NS_OK;
 }

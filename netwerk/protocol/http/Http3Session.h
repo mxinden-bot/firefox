@@ -101,6 +101,7 @@ namespace mozilla::net {
 
 class HttpConnectionUDP;
 class Http3StreamBase;
+class Http3ConnectUDPStream;
 class QuicSocketControl;
 class Http3WebTransportSession;
 class Http3WebTransportStream;
@@ -129,8 +130,15 @@ class Http3SessionBase {
                                  uint64_t* aStreamId,
                                  Http3StreamBase* aStream) = 0;
   virtual void CloseSendingSide(uint64_t aStreamId) = 0;
-  virtual void SendHTTPDatagram(uint64_t aStreamId, nsTArray<uint8_t>& aData,
+  // Returns true if the HTTP/3 datagram was queued, false if it was refused
+  // because the outgoing QUIC datagram queue is full (backpressure). On false
+  // the caller should stop sending until DatagramSendBlocked's stream is
+  // re-driven.
+  virtual bool SendHTTPDatagram(uint64_t aStreamId, nsTArray<uint8_t>& aData,
                                 uint64_t aTrackingId) = 0;
+  // Register a connect-udp stream that was refused an HTTP/3 datagram send, so
+  // it can be re-driven once the outgoing QUIC datagram queue has space again.
+  virtual void DatagramSendBlocked(Http3ConnectUDPStream* aStream) {}
   virtual nsresult SendPriorityUpdateFrame(uint64_t aStreamId,
                                            uint8_t aPriorityUrgency,
                                            bool aPriorityIncremental) = 0;
@@ -294,8 +302,9 @@ class Http3Session final : public Http3SessionBase,
   void SendDatagram(Http3WebTransportSession* aSession,
                     nsTArray<uint8_t>& aData, uint64_t aTrackingId,
                     uint64_t aSendGroupId, int64_t aSendOrder) override;
-  void SendHTTPDatagram(uint64_t aStreamId, nsTArray<uint8_t>& aData,
+  bool SendHTTPDatagram(uint64_t aStreamId, nsTArray<uint8_t>& aData,
                         uint64_t aTrackingId) override;
+  void DatagramSendBlocked(Http3ConnectUDPStream* aStream) override;
 
   uint64_t MaxDatagramSize(uint64_t aSessionId) override;
   nsresult ExportWebTransportKeyingMaterial(
@@ -389,6 +398,11 @@ class Http3Session final : public Http3SessionBase,
       mStreamTransactionHash;
 
   nsRefPtrDeque<Http3StreamBase> mReadyForWrite;
+
+  // Connect-udp streams whose last HTTP/3 datagram send was refused because the
+  // outgoing QUIC datagram queue was full. Re-driven on
+  // Http3Event::OutgoingDatagramSpaceAvailable.
+  nsTArray<RefPtr<Http3ConnectUDPStream>> mDatagramBlocked;
 
   nsTArray<RefPtr<Http3StreamBase>> mSlowConsumersReadyForRead;
   nsRefPtrDeque<Http3StreamBase> mQueuedStreams;

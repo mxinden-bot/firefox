@@ -2120,6 +2120,10 @@ pub enum Http3Event {
     EchFallbackAuthenticationNeeded,
     WebTransport(WebTransportEventExternal),
     ConnectUdp(ConnectUdpEventExternal),
+    /// The outgoing QUIC datagram queue has space again after having been full.
+    /// Consumers that were told an HTTP/3 datagram send would block can resume
+    /// sending.
+    OutgoingDatagramSpaceAvailable,
     NoEvent,
 }
 
@@ -2313,6 +2317,9 @@ pub extern "C" fn neqo_http3conn_event(
             }
             Http3ClientEvent::ConnectUdp(e) => {
                 Http3Event::ConnectUdp(ConnectUdpEventExternal::new(e, data))
+            }
+            Http3ClientEvent::OutgoingDatagramSpaceAvailable => {
+                Http3Event::OutgoingDatagramSpaceAvailable
             }
         };
 
@@ -2676,7 +2683,8 @@ pub extern "C" fn neqo_http3conn_webtransport_send_datagram(
         id,
         Instant::now(),
     ) {
-        Ok(_) => NS_OK,
+        Ok(true) => NS_OK,
+        Ok(false) => NS_BASE_STREAM_WOULD_BLOCK,
         Err(Http3Error::Transport(TransportError::TooMuchData)) => NS_ERROR_NOT_AVAILABLE,
         Err(_) => NS_ERROR_UNEXPECTED,
     }
@@ -2705,7 +2713,12 @@ pub extern "C" fn neqo_http3conn_connect_udp_send_datagram(
         id,
         Instant::now(),
     ) {
-        Ok(_) => NS_OK,
+        // Queued.
+        Ok(true) => NS_OK,
+        // Outgoing QUIC datagram queue full: signal backpressure. The caller
+        // stops sending and resumes on
+        // `Http3Event::OutgoingDatagramSpaceAvailable`.
+        Ok(false) => NS_BASE_STREAM_WOULD_BLOCK,
         Err(Http3Error::Transport(TransportError::TooMuchData)) => NS_ERROR_NOT_AVAILABLE,
         Err(_) => NS_ERROR_UNEXPECTED,
     }
