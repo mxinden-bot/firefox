@@ -194,3 +194,122 @@ add_task(async function test_stuck_0rtt_session() {
     "All requests should complete within 10 seconds via fallback"
   );
 });
+
+// Reuse variant of test_stuck_0rtt_session.
+//
+// test_stuck_0rtt_session covers the case where the requests themselves
+// establish the stuck 0-RTT connection: they wait in the pending queue, so each
+// gets a Happy Eyeballs h3 backup timer and falls back to H2 quickly.
+//
+// This test covers the case seen in the wild: a stuck 0-RTT connection is
+// already sitting in the entry's active connections, and a *later* request is
+// dispatched straight onto it. That immediate-dispatch path
+// (nsHttpConnectionMgr::TryDispatchTransaction, the !conn->IsExperienced()
+// branch) never inserts the transaction into the pending queue, so
+// OnPendingQueueInserted never runs and no h3 backup timer is armed. The
+// reusing request can then only recover via the slower
+// network.http.http3.0rtt_timeout, not the ~100ms backup.
+//
+// We make that difference observable by giving 0rtt_timeout a long value and the
+// backup a short one: with a backup the reusing request finishes fast; without
+// one it has to wait out 0rtt_timeout. With the fix (arm a backup when
+// dispatching onto an unconfirmed h3 connection, or keep such a connection out
+// of immediate dispatch) the reusing request falls back as fast as the
+// establishing ones.
+add_task(async function test_stuck_0rtt_reused_connection() {
+  info("Testing reuse of an already-pooled stuck 0-RTT connection");
+
+  let h3Port = await create_h3_server();
+  Assert.notEqual(h3Port, null);
+
+  let h2Server = new NodeHTTP2Server();
+  await h2Server.start(h3Port);
+  registerCleanupFunction(async () => {
+    await h2Server.stop();
+  });
+  await h2Server.registerPathHandler("/30", (_req, resp) => {
+    resp.writeHead(200, { "content-type": "text/plain" });
+    resp.end("H2 fallback response");
+  });
+
+  let testHost = "alt2.example.com";
+  Services.prefs.setCharPref("network.dns.localDomains", testHost);
+  Services.prefs.setCharPref(
+    "network.http.http3.alt-svc-mapping-for-testing",
+    `${testHost};h3=:${h3Port}`
+  );
+  Services.prefs.setBoolPref("network.http.http3.enable_0rtt", true);
+  // Long 0-RTT timeout so recovery via the slow backstop is clearly separable
+  // from recovery via the fast backup, and a short backup delay so the backup,
+  // when it is armed, wins well inside the assertion window below.
+  Services.prefs.setIntPref("network.http.http3.0rtt_timeout", 8000);
+  Services.prefs.setIntPref(
+    "network.http.happy_eyeballs_connection_attempt_delay",
+    100
+  );
+
+  function makeStuckTestChan(path) {
+    let chan = NetUtil.newChannel({
+      uri: `https://${testHost}:${h3Port}${path}`,
+      loadUsingSystemPrincipal: true,
+    }).QueryInterface(Ci.nsIHttpChannel);
+    chan.loadFlags = Ci.nsIChannel.LOAD_INITIAL_DOCUMENT_URI;
+    return chan;
+  }
+
+  Services.obs.notifyObservers(null, "net:cancel-all-connections");
+  // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  // Establish a resumable session for 0-RTT.
+  info("Establishing initial session for 0-RTT");
+  let [req] = await channelOpenPromise(makeStuckTestChan("/30"));
+  Assert.equal(req.status, Cr.NS_OK);
+  // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  info("Enabling stuck 0-RTT mode on test server");
+  let [setupReq] = await channelOpenPromise(
+    makeStuckTestChan("/SetStuckZeroRtt")
+  );
+  Assert.equal(setupReq.status, Cr.NS_OK);
+  // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  Services.obs.notifyObservers(null, "net:cancel-all-connections");
+  // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  // Request A establishes the stuck 0-RTT connection. It is queued, so it gets a
+  // backup timer and falls back to H2, but the stuck h3 connection lingers in
+  // the entry's active connections.
+  info("Request A: establishes and pools the stuck 0-RTT connection");
+  let [reqA, bufA] = await channelOpenPromise(
+    makeStuckTestChan("/30?phase=establish"),
+    CL_ALLOW_UNKNOWN_CL
+  );
+  Assert.equal(reqA.status, Cr.NS_OK, "Request A should succeed");
+  Assert.equal(bufA, "H2 fallback response", "Request A should fall back to H2");
+
+  // Request B reuses the pooled, still-ZERORTT connection. It is dispatched
+  // immediately (no pending queue, no backup timer), so today it can only
+  // recover via the 8s 0rtt_timeout. With the fix it falls back promptly.
+  info("Request B: reuses the pooled stuck 0-RTT connection");
+  let startTime = Date.now();
+  let [reqB, bufB] = await channelOpenPromise(
+    makeStuckTestChan("/30?phase=reuse"),
+    CL_ALLOW_UNKNOWN_CL
+  );
+  let elapsed = Date.now() - startTime;
+  info(`Request B completed after ${elapsed}ms`);
+
+  Assert.equal(reqB.status, Cr.NS_OK, "Request B should succeed");
+  Assert.equal(bufB, "H2 fallback response", "Request B should fall back to H2");
+  // The reusing request must fall back via the fast backup, not wait out the 8s
+  // 0rtt_timeout. Without the necko fix this assertion fails (elapsed ~= 8000).
+  Assert.less(
+    elapsed,
+    2000,
+    "Reusing request should fall back quickly, not wait out 0rtt_timeout"
+  );
+});
