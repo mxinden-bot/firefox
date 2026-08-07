@@ -57,6 +57,7 @@ class ChildDNSRecord : public nsIDNSAddrRecord {
   nsITRRSkipReason::value mTRRSkipReason = nsITRRSkipReason::TRR_UNSET;
   uint32_t mTTL = 0;
   TimeStamp mLastUpdate = mozilla::TimeStamp::NowLoRes();
+  bool mFromStaleCache = false;
 };
 
 NS_IMPL_ISUPPORTS(ChildDNSRecord, nsIDNSRecord, nsIDNSAddrRecord)
@@ -78,6 +79,7 @@ ChildDNSRecord::ChildDNSRecord(const DNSRecord& reply,
   mAddresses = addrs.Clone();
   mTTL = reply.ttl();
   mLastUpdate = reply.lastUpdate();
+  mFromStaleCache = reply.fromStaleCache();
 }
 
 //-----------------------------------------------------------------------------
@@ -209,6 +211,12 @@ ChildDNSRecord::GetTtl(uint32_t* aTtl) {
 NS_IMETHODIMP
 ChildDNSRecord::GetLastUpdate(TimeStamp* aLastUpdate) {
   *aLastUpdate = mLastUpdate;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+ChildDNSRecord::GetFromStaleCache(bool* aResult) {
+  *aResult = mFromStaleCache;
   return NS_OK;
 }
 

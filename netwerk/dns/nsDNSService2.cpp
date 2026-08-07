@@ -366,6 +366,11 @@ nsDNSRecord::GetLastUpdate(mozilla::TimeStamp* aLastUpdate) {
   return mHostRecord->GetLastUpdate(aLastUpdate);
 }
 
+NS_IMETHODIMP
+nsDNSRecord::GetFromStaleCache(bool* aResult) {
+  return mHostRecord->GetFromStaleCache(aResult);
+}
+
 class nsDNSByTypeRecord : public nsIDNSByTypeRecord,
                           public nsIDNSTXTRecord,
                           public nsIDNSHTTPSSVCRecord {
