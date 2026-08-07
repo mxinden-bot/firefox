@@ -1163,6 +1163,15 @@ nsresult HttpConnectionUDP::SendData() {
     return NS_OK;
   }
 
+  // Paused because the tunnelling socket (connect-udp) cannot accept sends. Do
+  // not pull packets from neqo: leaving its data in the connection's own
+  // flow-controlled send buffers is what applies backpressure without dropping.
+  // OnSocketWritableChanged(true) resumes us.
+  if (mSendPaused) {
+    LOG(("  send paused by socket backpressure; not pulling from neqo\n"));
+    return NS_OK;
+  }
+
   nsresult rv = mHttp3Session->SendData(mSocket);
   LOG(("HttpConnectionUDP::OnInputReady %p rv=%" PRIx32, this,
        static_cast<uint32_t>(rv)));
@@ -1246,6 +1255,15 @@ NS_IMETHODIMP HttpConnectionUDP::OnStopListening(nsIUDPSocket* aSocket,
   // true to ensure that mHttp3Session is also closed.
   CloseTransaction(mHttp3Session, aStatus, true);
   return NS_OK;
+}
+
+NS_IMETHODIMP HttpConnectionUDP::OnSocketWritableChanged(nsIUDPSocket* aSocket,
+                                                         bool aWritable) {
+  MOZ_ASSERT(OnSocketThread(), "not on socket thread");
+  mSendPaused = !aWritable;
+  // On resume, re-drive output: the session picks up where it paused, pulling
+  // fresh packets from neqo now that the tunnel can carry them.
+  return aWritable ? ResumeSend() : NS_OK;
 }
 
 nsresult HttpConnectionUDP::GetSelfAddr(NetAddr* addr) {

@@ -90,12 +90,29 @@ nsresult Http3ConnectUDPStream::OnProcessDatagram() {
     if (!mSession->SendHTTPDatagram(mStreamId, data, mTrackingId)) {
       // neqo's outgoing QUIC datagram queue is full. Leave the HTTP/3 datagram
       // at the head of the queue and stop; we resume draining when the session
-      // re-drives us on Http3Event::OutgoingDatagramSpaceAvailable.
+      // re-drives us on Http3Event::OutgoingDatagramSpaceAvailable. Pause the
+      // inner connection so it stops producing packets we would only buffer:
+      // its data waits in its own flow-controlled send buffers, and no packet
+      // is ever minted-then-dropped.
+      if (!mSendBlocked) {
+        mSendBlocked = true;
+        if (mSyncListener) {
+          mSyncListener->OnSocketWritableChanged(this, false);
+        }
+      }
       mSession->DatagramSendBlocked(this);
       return NS_OK;
     }
     mOutputData.Pop();
     mTrackingId++;
+  }
+
+  // Fully drained. If we had paused the inner connection, let it write again.
+  if (mSendBlocked) {
+    mSendBlocked = false;
+    if (mSyncListener) {
+      mSyncListener->OnSocketWritableChanged(this, true);
+    }
   }
   return NS_OK;
 }

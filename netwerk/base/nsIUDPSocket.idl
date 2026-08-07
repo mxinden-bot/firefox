@@ -475,4 +475,22 @@ interface nsIUDPSocketSyncListener : nsISupports
      *        NS_BINDING_ABORTED.
      */
     void onStopListening(in nsIUDPSocket aSocket, in nsresult aStatus);
+
+    /**
+     * onSocketWritableChanged
+     *
+     * This method is called when the socket's ability to accept sends changes.
+     * A tunnelling socket (e.g. connect-udp) can refuse sends when the outer
+     * connection cannot accept more data, then allow them again once it drains.
+     * The listener uses this to pause and resume the source that writes to the
+     * socket, so that source's own congestion control does the throttling
+     * instead of buffering without bound.
+     *
+     * @param aSocket
+     *        The UDP socket.
+     * @param aWritable
+     *        false when the socket has begun refusing sends, true when it can
+     *        accept sends again.
+     */
+    void onSocketWritableChanged(in nsIUDPSocket aSocket, in boolean aWritable);
 };

@@ -98,6 +98,12 @@ class Http3ConnectUDPStream final : public Http3TunnelStreamBase,
   mozilla::Queue<UniquePtr<UDPPayload>> mOutputData;
   uint64_t mTrackingId{1};
 
+  // True while the outer session is refusing datagrams (its outgoing QUIC
+  // datagram queue is full). We pause the inner connection that writes to this
+  // socket for the duration, then resume it, so the inner congestion controller
+  // throttles the source instead of us buffering mOutputData without bound.
+  bool mSendBlocked{false};
+
   bool mIsTRRServiceChannel{false};
 };
 

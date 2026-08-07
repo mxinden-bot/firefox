@@ -145,6 +145,11 @@ class HttpConnectionUDP final : public HttpConnectionBase,
   PRIntervalTime mLastRequestBytesSentTime = 0;
   nsCOMPtr<nsIUDPSocket> mSocket;
 
+  // Set via OnSocketWritableChanged when a tunnelling socket refuses sends. While
+  // set, SendData does not pull packets from neqo, applying backpressure to the
+  // connection's own congestion control rather than buffering.
+  bool mSendPaused = false;
+
   nsCOMPtr<nsINetAddr> mSelfAddr;
   nsCOMPtr<nsINetAddr> mPeerAddr;
   bool mResolvedByTRR = false;

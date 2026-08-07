@@ -254,6 +254,12 @@ class UDPListener final : public nsIUDPSocketSyncListener {
     return NS_OK;
   }
 
+  NS_IMETHOD OnSocketWritableChanged(nsIUDPSocket* aSocket,
+                                     bool aWritable) override {
+    mWritable = aWritable;
+    return NS_OK;
+  }
+
   nsTArray<uint8_t> TakeInputData() { return std::move(mReceivedData); }
 
   bool OnStopListeningCalled() const { return mOnStopListeningCalled; }
@@ -262,6 +268,7 @@ class UDPListener final : public nsIUDPSocketSyncListener {
   ~UDPListener() = default;
 
   bool mOnStopListeningCalled = false;
+  bool mWritable = true;
   nsTArray<uint8_t> mReceivedData;
 };
 
