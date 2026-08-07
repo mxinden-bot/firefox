@@ -307,7 +307,7 @@ impl HappyEyeballs {
             addrs.push(ipv4);
         }
 
-        self.profiler.dns_response(id, &addrs);
+        self.profiler.dns_response(id, &addrs, stale);
         self.metrics.dns_response(id, !addrs.is_empty(), is_trr);
 
         let result = happy_eyeballs::DnsResult::A(Ok(addrs));
@@ -339,7 +339,7 @@ impl HappyEyeballs {
             addrs.push(ipv6);
         }
 
-        self.profiler.dns_response(id, &addrs);
+        self.profiler.dns_response(id, &addrs, stale);
         self.metrics.dns_response(id, !addrs.is_empty(), is_trr);
 
         let result = happy_eyeballs::DnsResult::Aaaa(Ok(addrs));
@@ -424,7 +424,7 @@ impl HappyEyeballs {
             });
         }
 
-        self.profiler.dns_response_https(id, &infos);
+        self.profiler.dns_response_https(id, &infos, stale);
         self.metrics.dns_response_https(id, &infos, is_trr);
 
         let result = happy_eyeballs::DnsResult::Https(Ok(infos));
@@ -486,7 +486,8 @@ impl HappyEyeballs {
                 record_type,
                 allow_stale,
             }) => {
-                self.profiler.dns_query_started(id, record_type);
+                self.profiler
+                    .dns_query_started(id, record_type, allow_stale);
                 self.metrics.dns_query_started(id, record_type);
                 let hostname: String = hostname.into();
                 dns_hostname.assign(hostname.as_bytes());
