@@ -102,6 +102,7 @@ DNSRequestHandler::OnLookupComplete(nsICancelable* request,
     if (byTypeRec) {
       IPCTypeRecord result;
       byTypeRec->GetResults(&result.mData);
+      byTypeRec->GetFromStaleCache(&result.mFromStaleCache);
       if (nsCOMPtr<nsIDNSHTTPSSVCRecord> rec = do_QueryInterface(aRecord)) {
         rec->GetTtl(&result.mTTL);
         rec->IsTRR(&result.mIsTRR);

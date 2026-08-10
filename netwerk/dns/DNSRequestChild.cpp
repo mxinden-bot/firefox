@@ -233,7 +233,7 @@ class ChildDNSByTypeRecord : public nsIDNSByTypeRecord,
 
   explicit ChildDNSByTypeRecord(const TypeRecordResultType& reply,
                                 const nsACString& aHost, uint32_t aTTL,
-                                bool aIsTRR);
+                                bool aIsTRR, bool aFromStaleCache);
 
  private:
   virtual ~ChildDNSByTypeRecord() = default;
@@ -242,6 +242,7 @@ class ChildDNSByTypeRecord : public nsIDNSByTypeRecord,
   bool mAllRecordsExcluded = false;
   uint32_t mTTL = 0;
   bool mIsTRR = false;
+  bool mFromStaleCache = false;
 };
 
 NS_IMPL_ISUPPORTS(ChildDNSByTypeRecord, nsIDNSByTypeRecord, nsIDNSRecord,
@@ -249,11 +250,13 @@ NS_IMPL_ISUPPORTS(ChildDNSByTypeRecord, nsIDNSByTypeRecord, nsIDNSRecord,
 
 ChildDNSByTypeRecord::ChildDNSByTypeRecord(const TypeRecordResultType& reply,
                                            const nsACString& aHost,
-                                           uint32_t aTTL, bool aIsTRR)
+                                           uint32_t aTTL, bool aIsTRR,
+                                           bool aFromStaleCache)
     : DNSHTTPSSVCRecordBase(aHost) {
   mResults = reply;
   mTTL = aTTL;
   mIsTRR = aIsTRR;
+  mFromStaleCache = aFromStaleCache;
 }
 
 NS_IMETHODIMP
@@ -265,6 +268,12 @@ ChildDNSByTypeRecord::GetType(uint32_t* aType) {
       },
       [](TypeRecordTxt&) { return nsIDNSService::RESOLVE_TYPE_TXT; },
       [](TypeRecordHTTPSSVC&) { return nsIDNSService::RESOLVE_TYPE_HTTPSSVC; });
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+ChildDNSByTypeRecord::GetFromStaleCache(bool* aResult) {
+  *aResult = mFromStaleCache;
   return NS_OK;
 }
 
@@ -540,7 +549,8 @@ bool DNSRequestSender::OnRecvLookupCompleted(const DNSRequestResponse& reply) {
       MOZ_ASSERT(mType != nsIDNSService::RESOLVE_TYPE_DEFAULT);
       mResultRecord = new ChildDNSByTypeRecord(
           reply.get_IPCTypeRecord().mData, mHost,
-          reply.get_IPCTypeRecord().mTTL, reply.get_IPCTypeRecord().mIsTRR);
+          reply.get_IPCTypeRecord().mTTL, reply.get_IPCTypeRecord().mIsTRR,
+          reply.get_IPCTypeRecord().mFromStaleCache);
       break;
     }
     default:

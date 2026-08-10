@@ -467,6 +467,11 @@ nsDNSByTypeRecord::GetResults(mozilla::net::TypeRecordResultType* aResults) {
 }
 
 NS_IMETHODIMP
+nsDNSByTypeRecord::GetFromStaleCache(bool* aResult) {
+  return mHostRecord->GetFromStaleCache(aResult);
+}
+
+NS_IMETHODIMP
 nsDNSByTypeRecord::GetTtl(uint32_t* aTtl) { return mHostRecord->GetTtl(aTtl); }
 
 //-----------------------------------------------------------------------------

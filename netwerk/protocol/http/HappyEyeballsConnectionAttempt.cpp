@@ -2130,6 +2130,12 @@ nsresult HappyEyeballsConnectionAttempt::OnHTTPSRecord(nsIDNSRecord* aRecord,
 
   bool httpsIsTRR = false;
   (void)httpsRecord->IsTRR(&httpsIsTRR);
+
+  bool httpsFromStaleCache = false;
+  if (nsCOMPtr<nsIDNSByTypeRecord> byTypeRec = do_QueryInterface(aRecord)) {
+    (void)byTypeRec->GetFromStaleCache(&httpsFromStaleCache);
+  }
+
   if (httpsIsTRR) {
     mDnsMetadata.mIsTRR = true;
     mDnsMetadata.mEffectiveTRRMode =
@@ -2235,7 +2241,7 @@ nsresult HappyEyeballsConnectionAttempt::OnHTTPSRecord(nsIDNSRecord* aRecord,
   }
 
   (void)happy_eyeballs_process_dns_response_https(
-      mHappyEyeballs, aId, &serviceInfos, httpsIsTRR, false);
+      mHappyEyeballs, aId, &serviceInfos, httpsIsTRR, httpsFromStaleCache);
   return ProcessHappyEyeballsOutput();
 }
 

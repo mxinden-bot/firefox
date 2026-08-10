@@ -362,6 +362,7 @@ class TypeHostRecord final : public nsHostRecord,
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const override;
   uint32_t GetType();
   mozilla::net::TypeRecordResultType GetResults();
+  nsresult GetFromStaleCache(bool* aResult);
 
  private:
   friend class nsHostResolver;
