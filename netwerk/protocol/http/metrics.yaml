@@ -2140,6 +2140,28 @@ http:
     expires: never
     telemetry_mirror: h#HTTP_ALTSVC_MAPPING_CHANGED_TARGET
 
+  altsvc_expired_h3_mapping_staleness:
+    type: custom_distribution
+    description: >
+      For an HTTP/3 (h3) Alt-Svc mapping that is found in the cache but has
+      already expired, and is therefore discarded on lookup, how long past its
+      expiry it was, in seconds. This measures both how often Firefox throws
+      away an expired h3 Alt-Svc mapping it could otherwise attempt
+      optimistically (the sample count) and how stale those mappings are (the
+      distribution).
+    range_min: 1
+    range_max: 2592000
+    bucket_count: 100
+    histogram_type: exponential
+    unit: s
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=2060496
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=2060496
+    notification_emails:
+      - necko@mozilla.com
+    expires: never
+
   response_version:
     type: custom_distribution
     description: >

@@ -812,8 +812,13 @@ already_AddRefed<AltSvcMapping> AltSvcCache::LookupMapping(
     return nullptr;
   }
 
-  if (mapping->TTL() <= 0) {
+  int32_t ttl = mapping->TTL();
+  if (ttl <= 0) {
     LOG(("AltSvcCache::LookupMapping %p expired hit - MISS\n", this));
+    if (mapping->IsHttp3()) {
+      glean::http::altsvc_expired_h3_mapping_staleness.AccumulateSingleSample(
+          static_cast<uint64_t>(-ttl));
+    }
     (void)mStorage->Remove(key, mapping->Private()
                                     ? nsIDataStorage::DataType::Private
                                     : nsIDataStorage::DataType::Persistent);
