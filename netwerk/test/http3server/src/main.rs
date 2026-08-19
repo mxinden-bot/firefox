@@ -1642,8 +1642,12 @@ fn spawn_server<S: HttpServer + Unpin + 'static>(
         Ok(s) => s,
     };
 
-    task_set
-        .spawn_local(Runner::new(server, Box::new(Instant::now), vec![(local_addr, socket)]).run());
+    task_set.spawn_local(async move {
+        let runner = Runner::new(server, Box::new(Instant::now), vec![(local_addr, socket)]);
+        if let Err(e) = runner.run().await {
+            eprintln!("http3server: {local_addr} stopped serving, later tests will fail: {e}");
+        }
+    });
     hosts.push(local_addr);
 
     Ok(())
