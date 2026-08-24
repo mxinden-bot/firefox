@@ -4709,6 +4709,12 @@ criteria = "safe-to-deploy"
 delta = "0.22.0 -> 0.22.0@git:2a2e344019bfc76b7e566ee6e0549cf668d90127"
 importable = false
 
+[[audits.mls-rs-provider-sqlite]]
+who = "Max Inden <mail@max-inden.de>"
+criteria = "safe-to-deploy"
+delta = "0.22.0@git:2a2e344019bfc76b7e566ee6e0549cf668d90127 -> 0.22.0@git:eb1c880304127bcb7d0ee6d701fd4ca9ebc73403"
+importable = false
+
 [[audits.mockito]]
 who = "Ben Dean-Kawamura <bdk@mozilla.com>"
 criteria = "safe-to-run"
@@ -4753,6 +4759,12 @@ delta = "0.3.0 -> 0.4.1"
 who = "Max Inden <mail@max-inden.de>"
 criteria = "safe-to-deploy"
 delta = "0.4.1 -> 0.4.1@git:e2a2a7459b8b51778b50209251a61fc5ca020893"
+importable = false
+
+[[audits.mtu]]
+who = "Max Inden <mail@max-inden.de>"
+criteria = "safe-to-deploy"
+delta = "0.4.1@git:e2a2a7459b8b51778b50209251a61fc5ca020893 -> 0.4.1@git:7fd585bfaf1e2065ddcfa5ca5dade0031496f2ee"
 importable = false
 
 [[audits.naga]]

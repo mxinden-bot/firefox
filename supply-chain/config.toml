@@ -231,6 +231,10 @@ audit-as-crates-io = false
 [policy.peek-poke-derive]
 audit-as-crates-io = false
 
+[policy.process-backend]
+audit-as-crates-io = false
+notes = "First-party crate in the minidump-writer git workspace; the crates.io name is a placeholder."
+
 [policy.pulse]
 audit-as-crates-io = false
 notes = "This is a first-party crate which is entirely unrelated to the crates.io package of the same name."
