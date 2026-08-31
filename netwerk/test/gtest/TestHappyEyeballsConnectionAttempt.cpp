@@ -457,6 +457,27 @@ TEST(HappyEyeballsConnectionAttempt, ClaimedLocalAttemptRetries)
   });
 }
 
+// Eager Alt-Svc h3 validation marks its conn info Http3Only, which initializes
+// the engine with h1 = h2 = false. That conn info hashes to the origin's entry,
+// so the speculative attempt must refuse a real transaction: claiming it would
+// bind the transaction to a race that can never fall back to TCP (bug 2063452).
+TEST(HappyEyeballsConnectionAttempt, Http3OnlyAttemptRefusesRealTransaction)
+{
+  EnsureHttpHandler();
+  RunOnSocketThread([]() {
+    TestHarness h(/*caps*/ 0, /*realTransaction*/ false, "127.0.0.1"_ns,
+                  /*speculative*/ true);
+    RefPtr<nsHttpTransaction> realTrans = new nsHttpTransaction();
+
+    EXPECT_TRUE(h.mHE->AcceptsTransaction(realTrans));
+
+    h.mConnInfo->SetHttp3Only(true);
+    EXPECT_FALSE(h.mHE->AcceptsTransaction(realTrans))
+        << "an h3-only attempt has no h1/h2 leg, so a real transaction must "
+           "not claim it";
+  });
+}
+
 // 0-RTT started but no winner, then a non-0-RTT conn wins. EnterSucceeded's
 // fallback (AnyStarted && !HadWinner) must re-queue the real transaction once
 // and not mark it adopted. Uses the ZeroRttHandle seam to set AnyStarted.

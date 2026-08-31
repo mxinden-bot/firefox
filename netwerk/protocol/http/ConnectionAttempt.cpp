@@ -21,6 +21,12 @@ ConnectionAttempt::ConnectionAttempt(nsHttpConnectionInfo* ci,
       mUrgentStart(urgentStart) {}
 
 bool ConnectionAttempt::AcceptsTransaction(nsHttpTransaction* trans) const {
+  // An h3-only attempt (eager Alt-Svc h3 validation) races no h1/h2 leg, so a
+  // real transaction claiming it would be left without a TCP fallback.
+  if (mConnInfo->GetHttp3Only()) {
+    return false;
+  }
+
   // When marked as urgent start, only accept urgent start marked transactions.
   // Otherwise, accept any kind of transaction.
   return !mUrgentStart || (trans->Caps() & nsIClassOfService::UrgentStart);
