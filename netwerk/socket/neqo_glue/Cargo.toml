@@ -33,7 +33,7 @@ winapi = {version = "0.3", features = ["ws2def"] }
 
 [dependencies.nss-rs]
 git = "https://github.com/mozilla/nss-rs"
-version = "0.13"
+version = "0.14"
 default-features = false
 features = ["gecko"]
 
