@@ -3299,14 +3299,12 @@ dependencies = [
  "firefox-on-glean",
  "gecko-profiler",
  "happy-eyeballs",
- "libc",
  "log",
  "nserror",
  "nsstring",
  "serde",
  "static_prefs",
  "thin-vec",
- "winapi",
  "xpcom",
 ]
 

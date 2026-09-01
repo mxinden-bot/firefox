@@ -58,6 +58,7 @@ SOURCES += [
     "TestCacheCrypto.cpp",
     "TestCacheEntryWriterHang.cpp",
     "TestHappyEyeballsConnectionAttempt.cpp",
+    "TestHappyEyeballsNetAddrArray.cpp",
 ]
 
 if CONFIG["OS_TARGET"] == "WINNT":
