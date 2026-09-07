@@ -4948,6 +4948,12 @@ criteria = "safe-to-deploy"
 delta = "0.4.1 -> 0.4.1@git:965bea08e57a7b79679f5ea4a51889fb6c669a15"
 importable = false
 
+[[audits.mtu]]
+who = "Max Inden <mail@max-inden.de>"
+criteria = "safe-to-deploy"
+delta = "0.4.1 -> 0.4.1@git:c4e3b18158318e964bce52d59afb5e31b9e312d4"
+importable = false
+
 [[audits.multiversion]]
 who = "Henri Sivonen <hsivonen@hsivonen.fi>"
 criteria = "safe-to-deploy"

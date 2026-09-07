@@ -17,7 +17,7 @@ mod tests;
 
 use std::{cell::RefCell, fmt::Debug, mem, rc::Rc};
 
-use neqo_common::{Bytes, Header, Role, qdebug};
+use neqo_common::{Bytes, Header, Role};
 use neqo_transport::StreamId;
 
 use crate::{
@@ -56,6 +56,13 @@ pub(crate) trait ExtendedConnectEvents: Debug {
         datagram: Bytes,
         connect_type: ExtendedConnectType,
     );
+    /// The control stream has flow-control space again after a datagram capsule
+    /// was refused with `FlowControlLimit`, so the sender can resume.
+    ///
+    /// This is the HTTP DATAGRAM Capsule path only. On the QUIC datagram path the
+    /// resume event instead originates in `neqo-transport` and is forwarded to
+    /// the HTTP/3 event by the connection.
+    fn capsule_space_available(&self);
 }
 
 #[derive(Debug, PartialEq, Copy, Clone, Eq, strum::Display)]
@@ -97,6 +104,10 @@ impl TransportPrerequisites {
             reliable_reset,
         }
     }
+
+    const fn all(&self) -> bool {
+        self.datagrams && self.reliable_reset
+    }
 }
 
 #[derive(Debug)]
@@ -126,11 +137,12 @@ impl ExtendedConnectFeature {
         settings: &HSettings,
         transport_prereqs: &TransportPrerequisites,
     ) {
-        // reset_stream_at is also required (draft Section 4.4), but too few servers support it
-        // yet, so we don't gate on it for now (falls back to RESET_STREAM). See #3917.
+        // A WebTransport client must confirm the server supports everything WebTransport needs:
+        // extended CONNECT, HTTP/3 datagrams (SETTINGS), and the datagram/reliable-reset
+        // transport parameters.
         let conditions_met = match self.connect_type {
             ExtendedConnectType::WebTransport => {
-                transport_prereqs.datagrams
+                transport_prereqs.all()
                     && settings.get(HSettingType::EnableH3Datagram) == 1
                     && (self.role == Role::Server
                         || (settings.get(HSettingType::EnableConnect) == 1
@@ -141,14 +153,6 @@ impl ExtendedConnectFeature {
             }
         };
         self.feature_negotiation.negotiate(conditions_met);
-        if self.connect_type == ExtendedConnectType::WebTransport
-            && self.enabled()
-            && !transport_prereqs.reliable_reset
-        {
-            qdebug!(
-                "WebTransport negotiated without peer reliable reset; stream resets use RESET_STREAM"
-            );
-        }
     }
 
     #[must_use]

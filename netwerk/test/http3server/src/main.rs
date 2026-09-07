@@ -808,6 +808,7 @@ impl HttpServer for Http3TestServer {
                 Http3ServerEvent::ConnectUdp(_) => {
                     unimplemented!()
                 }
+                Http3ServerEvent::OutgoingDatagramSpaceAvailable { .. } => {}
             }
         }
     }
@@ -1192,6 +1193,7 @@ impl HttpServer for Http3ReverseProxyServer {
                 }
                 Http3ServerEvent::WebTransport(_) => {}
                 Http3ServerEvent::ConnectUdp(_) => {}
+                Http3ServerEvent::OutgoingDatagramSpaceAvailable { .. } => {}
             }
         }
     }
@@ -1426,6 +1428,7 @@ impl HttpServer for Http3ConnectProxyServer {
                     );
                 }
                 Http3ServerEvent::WebTransport(_) => {}
+                Http3ServerEvent::OutgoingDatagramSpaceAvailable { .. } => {}
             }
         }
     }

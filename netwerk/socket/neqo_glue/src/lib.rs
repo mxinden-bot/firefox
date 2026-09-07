@@ -2164,6 +2164,8 @@ pub enum Http3Event {
         expire_in: u64, // microseconds
     },
     EchFallbackAuthenticationNeeded,
+    /// The outgoing QUIC datagram queue has space again after having been full.
+    OutgoingDatagramSpaceAvailable,
     WebTransport(WebTransportEventExternal),
     ConnectUdp(ConnectUdpEventExternal),
     NoEvent,
@@ -2304,6 +2306,9 @@ pub extern "C" fn neqo_http3conn_event(
             Http3ClientEvent::EchFallbackAuthenticationNeeded { public_name } => {
                 data.extend_from_slice(public_name.as_ref());
                 Http3Event::EchFallbackAuthenticationNeeded
+            }
+            Http3ClientEvent::OutgoingDatagramSpaceAvailable => {
+                Http3Event::OutgoingDatagramSpaceAvailable
             }
             Http3ClientEvent::WebTransport(e) => {
                 Http3Event::WebTransport(WebTransportEventExternal::new(e, data))
@@ -2702,7 +2707,11 @@ pub extern "C" fn neqo_http3conn_connect_udp_send_datagram(
         id,
         Instant::now(),
     ) {
-        Ok(_) => NS_OK,
+        // The datagram was queued. `Ok(false)` means the outgoing queue is now
+        // full: report it as WOULD_BLOCK so the caller stops the inner
+        // connection until an `OutgoingDatagramSpaceAvailable` event arrives.
+        Ok(true) => NS_OK,
+        Ok(false) => NS_BASE_STREAM_WOULD_BLOCK,
         Err(Http3Error::Transport(TransportError::TooMuchData)) => NS_ERROR_NOT_AVAILABLE,
         Err(_) => NS_ERROR_UNEXPECTED,
     }
