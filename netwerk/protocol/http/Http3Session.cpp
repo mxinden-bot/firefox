@@ -156,6 +156,7 @@ nsresult Http3Session::Init(const nsHttpConnectionInfo* aConnInfo,
     ExtState(ExtendedConnectKind::ConnectUDP).mStatus = NEGOTIATING;
   }
 
+  mIsTunnel = aIsTunnel;
   mUseNSPRForIO =
       StaticPrefs::network_http_http3_use_nspr_for_io() || aIsTunnel;
 
@@ -658,6 +659,16 @@ nsresult Http3Session::ProcessEvents() {
         if (stream) {
           StreamReadyToWrite(stream);
           stream->SetBlockedByFlowControl(false);
+        }
+      } break;
+      case Http3Event::Tag::OutgoingDatagramSpaceAvailable: {
+        LOG(("Http3Session::ProcessEvents - OutgoingDatagramSpaceAvailable"));
+        // The queue is per-connection, so resume every connect-udp tunnel
+        // stream that stopped its inner connection.
+        for (const auto& stream : mTunnelStreams) {
+          if (Http3ConnectUDPStream* udp = stream->GetHttp3ConnectUDPStream()) {
+            udp->OnOutgoingDatagramSpaceAvailable();
+          }
         }
       } break;
       case Http3Event::Tag::Reset:
@@ -1224,6 +1235,13 @@ nsresult Http3Session::ProcessOutput(nsIUDPSocket* socket) {
 
           LOG(("Http3Session::ProcessOutput sending packet rv=%d osError=%d",
                static_cast<int32_t>(rv), NS_FAILED(rv) ? PR_GetOSError() : 0));
+          if (rv == NS_BASE_STREAM_WOULD_BLOCK && self->mIsTunnel) {
+            // The tunnel's outgoing datagram queue is full. Stop producing
+            // packets on the inner connection; it resumes once the queue drains
+            // and OutgoingDatagramSpaceAvailable pokes it. Returning here stops
+            // neqo's process_output loop; SendData absorbs the WOULD_BLOCK.
+            return rv;
+          }
           if (NS_FAILED(rv) && (rv != NS_BASE_STREAM_WOULD_BLOCK)) {
             if (rv == NS_ERROR_OUT_OF_MEMORY) {
               // NSPR maps ENOBUFS to PR_INSUFFICIENT_RESOURCES_ERROR, which
@@ -3174,15 +3192,18 @@ nsresult Http3Session::GetWebTransportSessionProtocol(uint64_t aSessionId,
   return mHttp3Connection->GetWebTransportSessionProtocol(aSessionId,
                                                           aProtocol);
 }
-void Http3Session::SendHTTPDatagram(uint64_t aStreamId,
-                                    nsTArray<uint8_t>& aData,
-                                    uint64_t aTrackingId) {
+nsresult Http3Session::SendHTTPDatagram(uint64_t aStreamId,
+                                        nsTArray<uint8_t>& aData,
+                                        uint64_t aTrackingId) {
   LOG(("Http3Session::SendHTTPDatagram %p length=%zu aTrackingId=%" PRIx64,
        this, aData.Length(), aTrackingId));
   // Connect-UDP (MASQUE) doesn't use WebTransport send groups or send order,
   // so pass 0 for both (0 = null sendGroup, 0 = default sendOrder).
-  (void)mHttp3Connection->ConnectUdpSendDatagram(aStreamId, aData, aTrackingId,
-                                                 0, 0);
+  // NS_BASE_STREAM_WOULD_BLOCK means the datagram was queued but the outgoing
+  // queue is now full; the caller uses it to back-pressure the inner
+  // connection.
+  return mHttp3Connection->ConnectUdpSendDatagram(aStreamId, aData, aTrackingId,
+                                                  0, 0);
 }
 
 void Http3Session::SetSendOrder(Http3StreamBase* aStream, int64_t aSendOrder) {

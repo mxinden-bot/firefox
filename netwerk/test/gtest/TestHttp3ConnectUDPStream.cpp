@@ -44,9 +44,10 @@ class Http3SessionStub final : public Http3SessionBase {
 
   void CloseSendingSide(uint64_t aStreamId) override {}
 
-  void SendHTTPDatagram(uint64_t aStreamId, nsTArray<uint8_t>& aData,
-                        uint64_t aTrackingId) override {
+  nsresult SendHTTPDatagram(uint64_t aStreamId, nsTArray<uint8_t>& aData,
+                            uint64_t aTrackingId) override {
     mOutputData.AppendElements(aData);
+    return mDatagramResult;
   }
 
   nsresult SendRequestBody(uint64_t aStreamId, const char* buf, uint32_t count,
@@ -133,6 +134,9 @@ class Http3SessionStub final : public Http3SessionBase {
 
   nsTArray<uint8_t> TakeOutputData() { return std::move(mOutputData); }
 
+  // Lets a test make the next datagram report that the outgoing queue is full.
+  void SetDatagramResult(nsresult aResult) { mDatagramResult = aResult; }
+
   const nsCString& PathHeader() { return mPathHeader; }
   const nsCString& AuthHeader() { return mAuthHeader; }
 
@@ -144,6 +148,7 @@ class Http3SessionStub final : public Http3SessionBase {
   nsCString mPathHeader;
   nsCString mAuthHeader;
   bool mFinishTunnelSetupCalled = false;
+  nsresult mDatagramResult = NS_OK;
 };
 
 class DummyHttpTransaction : public nsAHttpTransaction {
@@ -401,6 +406,48 @@ TEST(ConnectUDP, SendData)
   output = session->TakeOutputData();
   ConnectUdp::testing::ValidateData(data, output);
   ASSERT_EQ(stream->ByteCountSent(), 300u);
+
+  udp->Close();
+}
+
+TEST(ConnectUDP, SendDataBackpressure)
+{
+  InitHttpHandler();
+
+  RefPtr<Http3SessionStub> session = new Http3SessionStub();
+  RefPtr<Http3ConnectUDPStream> stream = CreateUDPStream(session);
+  nsCOMPtr<nsIUDPSocket> udp = static_cast<nsIUDPSocket*>(stream.get());
+  ASSERT_TRUE(udp);
+
+  NetAddr peerAddr;
+  peerAddr.InitFromString("127.0.0.1"_ns);
+  nsTArray<uint8_t> data;
+  ConnectUdp::testing::CreateTestData(100, data);
+  uint32_t written = 0;
+
+  // The datagram that fills the queue is still accepted.
+  session->SetDatagramResult(NS_BASE_STREAM_WOULD_BLOCK);
+  nsresult rv =
+      udp->SendWithAddress(&peerAddr, data.Elements(), data.Length(), &written);
+  ASSERT_EQ(rv, NS_OK);
+  nsTArray<uint8_t> output = session->TakeOutputData();
+  ConnectUdp::testing::ValidateData(data, output);
+
+  // While the queue is full the inner connection is held off, and nothing
+  // reaches the session.
+  rv =
+      udp->SendWithAddress(&peerAddr, data.Elements(), data.Length(), &written);
+  ASSERT_EQ(rv, NS_BASE_STREAM_WOULD_BLOCK);
+  ASSERT_TRUE(session->TakeOutputData().IsEmpty());
+
+  // Space frees up and sending resumes.
+  session->SetDatagramResult(NS_OK);
+  stream->OnOutgoingDatagramSpaceAvailable();
+  rv =
+      udp->SendWithAddress(&peerAddr, data.Elements(), data.Length(), &written);
+  ASSERT_EQ(rv, NS_OK);
+  output = session->TakeOutputData();
+  ConnectUdp::testing::ValidateData(data, output);
 
   udp->Close();
 }

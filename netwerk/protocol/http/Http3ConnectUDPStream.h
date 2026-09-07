@@ -64,6 +64,10 @@ class Http3ConnectUDPStream final : public Http3TunnelStreamBase,
 
   nsresult OnProcessDatagram() override;
 
+  // The outer session's outgoing datagram queue has room again: resume the
+  // inner connection that was stopped when it filled up.
+  void OnOutgoingDatagramSpaceAvailable();
+
   // nsASocketHandler methods:
   void OnSocketReady(PRFileDesc* fd, int16_t outFlags) override;
   void OnSocketDetached(PRFileDesc* fd) override;
@@ -87,14 +91,19 @@ class Http3ConnectUDPStream final : public Http3TunnelStreamBase,
 
   NetAddr mAddr;
   nsCOMPtr<nsIUDPSocketSyncListener> mSyncListener;
+  // The inner connection whose packets we tunnel; poked to resume sending.
+  RefPtr<HttpConnectionUDP> mUDPConn;
 
   uint64_t mByteReadCount{0};
   uint64_t mByteWriteCount{0};
 
   nsCOMPtr<nsIEventTarget> mTarget;
   mozilla::Queue<UniquePtr<UDPPayload>> mReceivedData;
-  mozilla::Queue<UniquePtr<UDPPayload>> mOutputData;
   uint64_t mTrackingId{1};
+
+  // Set when the outer session's outgoing datagram queue is full, so the inner
+  // connection is held off until OnOutgoingDatagramSpaceAvailable clears it.
+  bool mDatagramBlocked{false};
 
   bool mIsTRRServiceChannel{false};
 };

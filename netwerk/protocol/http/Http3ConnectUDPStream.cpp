@@ -43,6 +43,7 @@ already_AddRefed<HttpConnectionUDP> Http3ConnectUDPStream::CreateUDPConnection(
     return nullptr;
   }
 
+  mUDPConn = conn;
   return conn.forget();
 }
 
@@ -59,6 +60,7 @@ void Http3ConnectUDPStream::Close(nsresult aResult) {
     mTransaction = nullptr;
   }
 
+  mUDPConn = nullptr;
   mSession = nullptr;
 }
 
@@ -79,13 +81,24 @@ bool Http3ConnectUDPStream::OnActivated() {
 }
 
 nsresult Http3ConnectUDPStream::OnProcessDatagram() {
-  LOG(("Http3ConnectUDPStream::OnProcessDatagram %p", this));
-
-  while (!mOutputData.IsEmpty()) {
-    nsTArray<uint8_t> data = mOutputData.Pop()->TakeData();
-    mSession->SendHTTPDatagram(mStreamId, data, mTrackingId++);
-  }
+  // Datagrams are sent synchronously from SendWithAddress now, so there is
+  // nothing to drain here; this only drives the outer connection's output.
   return NS_OK;
+}
+
+void Http3ConnectUDPStream::OnOutgoingDatagramSpaceAvailable() {
+  LOG(("Http3ConnectUDPStream::OnOutgoingDatagramSpaceAvailable %p", this));
+  if (!mDatagramBlocked) {
+    return;
+  }
+  mDatagramBlocked = false;
+  // Poke the inner connection so it resumes producing packets.
+  if (mUDPConn && NS_FAILED(mUDPConn->ForceSend())) {
+    LOG(
+        ("Http3ConnectUDPStream::OnOutgoingDatagramSpaceAvailable %p "
+         "ForceSend failed",
+         this));
+  }
 }
 
 nsresult Http3ConnectUDPStream::TryActivating() {
@@ -222,12 +235,26 @@ NS_IMETHODIMP Http3ConnectUDPStream::SendWithAddress(
     return NS_ERROR_NOT_AVAILABLE;
   }
 
+  // Back-pressure the inner connection while the outer queue is full, so it
+  // stops producing packets instead of us buffering them here.
+  if (mDatagramBlocked) {
+    return NS_BASE_STREAM_WOULD_BLOCK;
+  }
+
+  // Hand the inner connection's packet straight to the outer session as an HTTP
+  // datagram. NS_BASE_STREAM_WOULD_BLOCK means it was queued but the queue is
+  // now full: the datagram itself is accepted, so report success, but stop the
+  // inner connection until the queue drains.
   nsTArray<uint8_t> datagram;
   datagram.AppendElements(data, length);
-  mOutputData.Push(MakeUnique<UDPPayload>(std::move(datagram)));
+  nsresult rv = mSession->SendHTTPDatagram(mStreamId, datagram, mTrackingId++);
   mByteWriteCount += length;
   mSession->StreamHasDataToWrite(this);
-  return NS_OK;
+  if (rv == NS_BASE_STREAM_WOULD_BLOCK) {
+    mDatagramBlocked = true;
+    return NS_OK;
+  }
+  return rv;
 }
 
 NS_IMETHODIMP Http3ConnectUDPStream::SendBinaryStream(const nsACString& host,

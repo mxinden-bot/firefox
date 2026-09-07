@@ -129,8 +129,9 @@ class Http3SessionBase {
                                  uint64_t* aStreamId,
                                  Http3StreamBase* aStream) = 0;
   virtual void CloseSendingSide(uint64_t aStreamId) = 0;
-  virtual void SendHTTPDatagram(uint64_t aStreamId, nsTArray<uint8_t>& aData,
-                                uint64_t aTrackingId) = 0;
+  virtual nsresult SendHTTPDatagram(uint64_t aStreamId,
+                                    nsTArray<uint8_t>& aData,
+                                    uint64_t aTrackingId) = 0;
   virtual nsresult SendPriorityUpdateFrame(uint64_t aStreamId,
                                            uint8_t aPriorityUrgency,
                                            bool aPriorityIncremental) = 0;
@@ -302,8 +303,8 @@ class Http3Session final : public Http3SessionBase,
   void SendDatagram(Http3WebTransportSession* aSession,
                     nsTArray<uint8_t>& aData, uint64_t aTrackingId,
                     uint64_t aSendGroupId, int64_t aSendOrder) override;
-  void SendHTTPDatagram(uint64_t aStreamId, nsTArray<uint8_t>& aData,
-                        uint64_t aTrackingId) override;
+  nsresult SendHTTPDatagram(uint64_t aStreamId, nsTArray<uint8_t>& aData,
+                            uint64_t aTrackingId) override;
 
   uint64_t MaxDatagramSize(uint64_t aSessionId) override;
   nsresult ExportWebTransportKeyingMaterial(
@@ -426,6 +427,10 @@ class Http3Session final : public Http3SessionBase,
 
   // True if this http3 session uses NSPR for UDP IO.
   bool mUseNSPRForIO{true};
+
+  // True if this is the inner connection of a connect-udp/WebTransport tunnel,
+  // i.e. its socket is a tunnel stream rather than a real UDP socket.
+  bool mIsTunnel{false};
 
   RefPtr<HttpConnectionUDP> mUdpConn;
 
