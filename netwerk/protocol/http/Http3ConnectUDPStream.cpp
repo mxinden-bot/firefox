@@ -107,11 +107,8 @@ void Http3ConnectUDPStream::OnOutgoingDatagramSpaceAvailable() {
   PROFILER_MARKER("MasqueDatagramResume", NETWORK, {}, MasqueDatagramMarker,
                   uint32_t(0), uint32_t(0));
   // Poke the inner connection so it resumes producing packets.
-  if (mUDPConn && NS_FAILED(mUDPConn->ForceSend())) {
-    LOG(
-        ("Http3ConnectUDPStream::OnOutgoingDatagramSpaceAvailable %p "
-         "ForceSend failed",
-         this));
+  if (mUDPConn) {
+    (void)mUDPConn->ResumeSend();
   }
 }
 
