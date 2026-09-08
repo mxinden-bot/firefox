@@ -5396,7 +5396,7 @@ dependencies = [
 [[package]]
 name = "mtu"
 version = "0.4.1"
-source = "git+https://github.com/mxinden-bot/neqo?rev=c4e3b18158318e964bce52d59afb5e31b9e312d4#c4e3b18158318e964bce52d59afb5e31b9e312d4"
+source = "git+https://github.com/mozilla/neqo?rev=a66f8fc739b7e4b5f2b6e170fd03f72e1f143411#a66f8fc739b7e4b5f2b6e170fd03f72e1f143411"
 dependencies = [
  "cfg_aliases",
  "libc",
@@ -5478,8 +5478,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-bin"
-version = "0.31.0"
-source = "git+https://github.com/mxinden-bot/neqo?rev=c4e3b18158318e964bce52d59afb5e31b9e312d4#c4e3b18158318e964bce52d59afb5e31b9e312d4"
+version = "0.31.1"
+source = "git+https://github.com/mozilla/neqo?rev=a66f8fc739b7e4b5f2b6e170fd03f72e1f143411#a66f8fc739b7e4b5f2b6e170fd03f72e1f143411"
 dependencies = [
  "cfg_aliases",
  "clap",
@@ -5505,8 +5505,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-common"
-version = "0.31.0"
-source = "git+https://github.com/mxinden-bot/neqo?rev=c4e3b18158318e964bce52d59afb5e31b9e312d4#c4e3b18158318e964bce52d59afb5e31b9e312d4"
+version = "0.31.1"
+source = "git+https://github.com/mozilla/neqo?rev=a66f8fc739b7e4b5f2b6e170fd03f72e1f143411#a66f8fc739b7e4b5f2b6e170fd03f72e1f143411"
 dependencies = [
  "enum-map",
  "env_logger",
@@ -5522,8 +5522,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-http3"
-version = "0.31.0"
-source = "git+https://github.com/mxinden-bot/neqo?rev=c4e3b18158318e964bce52d59afb5e31b9e312d4#c4e3b18158318e964bce52d59afb5e31b9e312d4"
+version = "0.31.1"
+source = "git+https://github.com/mozilla/neqo?rev=a66f8fc739b7e4b5f2b6e170fd03f72e1f143411#a66f8fc739b7e4b5f2b6e170fd03f72e1f143411"
 dependencies = [
  "enumset",
  "http",
@@ -5542,8 +5542,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-qpack"
-version = "0.31.0"
-source = "git+https://github.com/mxinden-bot/neqo?rev=c4e3b18158318e964bce52d59afb5e31b9e312d4#c4e3b18158318e964bce52d59afb5e31b9e312d4"
+version = "0.31.1"
+source = "git+https://github.com/mozilla/neqo?rev=a66f8fc739b7e4b5f2b6e170fd03f72e1f143411#a66f8fc739b7e4b5f2b6e170fd03f72e1f143411"
 dependencies = [
  "log",
  "neqo-common",
@@ -5556,8 +5556,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-transport"
-version = "0.31.0"
-source = "git+https://github.com/mxinden-bot/neqo?rev=c4e3b18158318e964bce52d59afb5e31b9e312d4#c4e3b18158318e964bce52d59afb5e31b9e312d4"
+version = "0.31.1"
+source = "git+https://github.com/mozilla/neqo?rev=a66f8fc739b7e4b5f2b6e170fd03f72e1f143411#a66f8fc739b7e4b5f2b6e170fd03f72e1f143411"
 dependencies = [
  "enum-map",
  "enumset",
@@ -5576,8 +5576,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-udp"
-version = "0.31.0"
-source = "git+https://github.com/mxinden-bot/neqo?rev=c4e3b18158318e964bce52d59afb5e31b9e312d4#c4e3b18158318e964bce52d59afb5e31b9e312d4"
+version = "0.31.1"
+source = "git+https://github.com/mozilla/neqo?rev=a66f8fc739b7e4b5f2b6e170fd03f72e1f143411#a66f8fc739b7e4b5f2b6e170fd03f72e1f143411"
 dependencies = [
  "cfg_aliases",
  "libc",

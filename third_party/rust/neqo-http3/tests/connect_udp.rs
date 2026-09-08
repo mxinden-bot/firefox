@@ -841,3 +841,52 @@ fn datagram_capsule_flow_control_error_and_resume() {
         "resume event not emitted after control-stream flow control reopened"
     );
 }
+
+/// A datagram whose payload fits the window but whose capsule and DATA frame
+/// framing does not must be refused, not accepted and then truncated and lost.
+#[test]
+fn datagram_capsule_at_flow_control_boundary_is_refused_not_lost() {
+    const WINDOW: u64 = 150;
+
+    let (mut client, mut proxy, session_id, _proxy_session) =
+        establish_capsule_session(Some(WINDOW));
+
+    // A guard that counts only the payload keeps accepting after the framing stops
+    // fitting, and the overflowing capsule is truncated and lost.
+    let mut sent = 0;
+    while client.connect_udp_send_datagram(session_id, &[0x2c; 1], None, now()) == Ok(true) {
+        sent += 1;
+    }
+    assert!(sent > 0, "no send space to fill");
+
+    assert!(
+        !client
+            .events()
+            .any(|e| matches!(e, Http3ClientEvent::OutgoingDatagramSpaceAvailable)),
+        "resume event fired while the window was still closed"
+    );
+
+    // Count before sending anything else: a later send would flush a stranded tail
+    // out of the send buffer and hide the loss.
+    exchange_packets(&mut client, &mut proxy, false, None);
+    let received = proxy
+        .events()
+        .filter(|e| {
+            matches!(
+                e,
+                Http3ServerEvent::ConnectUdp(ServerEvent::Datagram { .. })
+            )
+        })
+        .count();
+    assert_eq!(
+        received, sent,
+        "a datagram was accepted and then lost: the guard under-counts the framing"
+    );
+
+    assert!(
+        client
+            .events()
+            .any(|e| matches!(e, Http3ClientEvent::OutgoingDatagramSpaceAvailable)),
+        "resume event not emitted after the window reopened"
+    );
+}

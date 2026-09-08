@@ -6,11 +6,11 @@ edition = "2021"
 license = "MPL-2.0"
 
 [dependencies]
-neqo-bin = { git = "https://github.com/mxinden-bot/neqo", rev = "c4e3b18158318e964bce52d59afb5e31b9e312d4" }
-neqo-transport = { git = "https://github.com/mxinden-bot/neqo", rev = "c4e3b18158318e964bce52d59afb5e31b9e312d4", features = ["gecko"] }
-neqo-common = { git = "https://github.com/mxinden-bot/neqo", rev = "c4e3b18158318e964bce52d59afb5e31b9e312d4" }
-neqo-http3 = { git = "https://github.com/mxinden-bot/neqo", rev = "c4e3b18158318e964bce52d59afb5e31b9e312d4" }
-neqo-qpack = { git = "https://github.com/mxinden-bot/neqo", rev = "c4e3b18158318e964bce52d59afb5e31b9e312d4" }
+neqo-bin = { git = "https://github.com/mozilla/neqo", rev = "a66f8fc739b7e4b5f2b6e170fd03f72e1f143411" }
+neqo-transport = { git = "https://github.com/mozilla/neqo", rev = "a66f8fc739b7e4b5f2b6e170fd03f72e1f143411", features = ["gecko"] }
+neqo-common = { git = "https://github.com/mozilla/neqo", rev = "a66f8fc739b7e4b5f2b6e170fd03f72e1f143411" }
+neqo-http3 = { git = "https://github.com/mozilla/neqo", rev = "a66f8fc739b7e4b5f2b6e170fd03f72e1f143411" }
+neqo-qpack = { git = "https://github.com/mozilla/neqo", rev = "a66f8fc739b7e4b5f2b6e170fd03f72e1f143411" }
 log = "0.4.0"
 base64 = "0.22"
 cfg-if = "1.0"
