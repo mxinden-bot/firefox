@@ -4,6 +4,7 @@
 
 // HttpLog.h should generally be included first
 #include "HttpLog.h"
+#include "mozilla/ProfilerMarkers.h"
 
 // Log on level :5, instead of default :4.
 #undef LOG
@@ -1161,6 +1162,7 @@ void HttpConnectionUDP::NotifyDataWrite() {
 // called on the socket transport thread
 nsresult HttpConnectionUDP::RecvData() {
   MOZ_ASSERT(OnSocketThread(), "not on socket thread");
+  AUTO_PROFILER_MARKER_UNTYPED("HttpConnectionUDP::RecvData", NETWORK, {});
 
   // if the transaction was dropped...
   if (!mHttp3Session) {
@@ -1180,6 +1182,7 @@ nsresult HttpConnectionUDP::RecvData() {
 // called on the socket transport thread
 nsresult HttpConnectionUDP::SendData() {
   MOZ_ASSERT(OnSocketThread(), "not on socket thread");
+  AUTO_PROFILER_MARKER_UNTYPED("HttpConnectionUDP::SendData", NETWORK, {});
 
   // if the transaction was dropped...
   if (!mHttp3Session) {

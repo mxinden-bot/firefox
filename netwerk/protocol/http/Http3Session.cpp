@@ -18,6 +18,7 @@
 #include "SSLTokensCache.h"
 #include "ScopedNSSTypes.h"
 #include "WebTransportCertificateVerifier.h"
+#include "mozilla/ProfilerMarkers.h"
 #include "mozilla/RandomNum.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/ScopeExit.h"
@@ -478,6 +479,7 @@ Http3Session::~Http3Session() {
 nsresult Http3Session::ProcessInput(nsIUDPSocket* socket) {
   MOZ_ASSERT(OnSocketThread(), "not on socket thread");
   MOZ_ASSERT(mUdpConn);
+  AUTO_PROFILER_MARKER_UNTYPED("Http3Session::ProcessInput", NETWORK, {});
 
   LOG(("Http3Session::ProcessInput writer=%p [this=%p state=%d]",
        mUdpConn.get(), this, mState));
@@ -663,6 +665,7 @@ nsresult Http3Session::ProcessEvents() {
       } break;
       case Http3Event::Tag::OutgoingDatagramSpaceAvailable: {
         LOG(("Http3Session::ProcessEvents - OutgoingDatagramSpaceAvailable"));
+        PROFILER_MARKER_UNTYPED("MasqueSpaceAvailable", NETWORK, {});
         // The queue is per-connection, so resume every connect-udp tunnel
         // stream that stopped its inner connection.
         for (const auto& stream : mTunnelStreams) {
@@ -1202,6 +1205,7 @@ nsresult Http3Session::ProcessEvents() {
 nsresult Http3Session::ProcessOutput(nsIUDPSocket* socket) {
   MOZ_ASSERT(OnSocketThread(), "not on socket thread");
   MOZ_ASSERT(mUdpConn);
+  AUTO_PROFILER_MARKER_UNTYPED("Http3Session::ProcessOutput", NETWORK, {});
 
   LOG(("Http3Session::ProcessOutput reader=%p, [this=%p]", mUdpConn.get(),
        this));
