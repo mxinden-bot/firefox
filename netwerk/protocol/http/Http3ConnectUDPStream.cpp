@@ -8,12 +8,41 @@
 #include "Http3Session.h"
 #include "HttpConnectionUDP.h"
 #include "HttpLog.h"
+#include "mozilla/ProfilerMarkers.h"
 #include "mozilla/net/UriTemplate.h"
 #include "nsHttpHandler.h"
 #include "nsIOService.h"
 #include "nsIPipe.h"
 #include "nsNetAddr.h"
 #include "nsProxyInfo.h"
+
+namespace geckoprofiler::markers {
+
+// Datagrams crossing the connect-udp (MASQUE) tunnel. `queued` is the depth of
+// the inbound queue; it is 0 for outbound markers, which hand the datagram
+// straight to neqo.
+struct MasqueDatagramMarker {
+  static constexpr mozilla::Span<const char> MarkerTypeName() {
+    return mozilla::MakeStringSpan("MasqueDatagram");
+  }
+  static void StreamJSONMarkerData(
+      mozilla::baseprofiler::SpliceableJSONWriter& aWriter, uint32_t aSize,
+      uint32_t aQueued) {
+    aWriter.IntProperty("size", aSize);
+    aWriter.IntProperty("queued", aQueued);
+  }
+  static mozilla::MarkerSchema MarkerTypeDisplay() {
+    using MS = mozilla::MarkerSchema;
+    MS schema{MS::Location::MarkerChart, MS::Location::MarkerTable};
+    schema.SetTableLabel(
+        "{marker.name} {marker.data.size} bytes, queued {marker.data.queued}");
+    schema.AddKeyFormat("size", MS::Format::Bytes);
+    schema.AddKeyFormat("queued", MS::Format::Integer);
+    return schema;
+  }
+};
+
+}  // namespace geckoprofiler::markers
 
 namespace mozilla::net {
 
@@ -67,8 +96,11 @@ void Http3ConnectUDPStream::Close(nsresult aResult) {
 void Http3ConnectUDPStream::OnDatagramReceived(nsTArray<uint8_t>&& aData) {
   LOG(("Http3ConnectUDPStream::OnDatagramReceived %p", this));
 
-  mByteReadCount += aData.Length();
+  uint32_t length = static_cast<uint32_t>(aData.Length());
+  mByteReadCount += length;
   mReceivedData.Push(MakeUnique<UDPPayload>(std::move(aData)));
+  PROFILER_MARKER("MasqueDatagramIn", NETWORK, {}, MasqueDatagramMarker, length,
+                  static_cast<uint32_t>(mReceivedData.Count()));
   if (mSyncListener) {
     mSyncListener->OnPacketReceived(this);
   }
@@ -92,6 +124,8 @@ void Http3ConnectUDPStream::OnOutgoingDatagramSpaceAvailable() {
     return;
   }
   mDatagramBlocked = false;
+  PROFILER_MARKER("MasqueDatagramResume", NETWORK, {}, MasqueDatagramMarker,
+                  uint32_t(0), uint32_t(0));
   // Poke the inner connection so it resumes producing packets.
   if (mUDPConn && NS_FAILED(mUDPConn->ForceSend())) {
     LOG(
@@ -222,6 +256,9 @@ NS_IMETHODIMP Http3ConnectUDPStream::RecvWithAddr(mozilla::net::NetAddr* addr,
   // TODO: should we use a real IP address here?
   addr->InitFromString("127.0.0.1"_ns);
   nsTArray<uint8_t> res = mReceivedData.Pop()->TakeData();
+  PROFILER_MARKER("MasqueDatagramRead", NETWORK, {}, MasqueDatagramMarker,
+                  static_cast<uint32_t>(res.Length()),
+                  static_cast<uint32_t>(mReceivedData.Count()));
   data.AppendElements(std::move(res));
   return NS_OK;
 }
@@ -238,6 +275,8 @@ NS_IMETHODIMP Http3ConnectUDPStream::SendWithAddress(
   // Back-pressure the inner connection while the outer queue is full, so it
   // stops producing packets instead of us buffering them here.
   if (mDatagramBlocked) {
+    PROFILER_MARKER("MasqueDatagramRefused", NETWORK, {}, MasqueDatagramMarker,
+                    length, uint32_t(0));
     return NS_BASE_STREAM_WOULD_BLOCK;
   }
 
@@ -250,8 +289,12 @@ NS_IMETHODIMP Http3ConnectUDPStream::SendWithAddress(
   nsresult rv = mSession->SendHTTPDatagram(mStreamId, datagram, mTrackingId++);
   mByteWriteCount += length;
   mSession->StreamHasDataToWrite(this);
+  PROFILER_MARKER("MasqueDatagramOut", NETWORK, {}, MasqueDatagramMarker,
+                  length, uint32_t(0));
   if (rv == NS_BASE_STREAM_WOULD_BLOCK) {
     mDatagramBlocked = true;
+    PROFILER_MARKER("MasqueDatagramQueueFull", NETWORK, {},
+                    MasqueDatagramMarker, length, uint32_t(0));
     return NS_OK;
   }
   return rv;
