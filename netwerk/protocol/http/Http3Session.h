@@ -347,6 +347,7 @@ class Http3Session final : public Http3SessionBase,
   nsresult ProcessOutput(nsIUDPSocket* socket);
   nsresult ProcessInput(nsIUDPSocket* socket);
   nsresult ProcessEvents();
+  void NotifyTunnelStreamsWithDatagrams();
 
   nsresult ProcessTransactionRead(uint64_t stream_id);
   nsresult ProcessTransactionRead(Http3StreamBase* stream);
@@ -516,6 +517,9 @@ class Http3Session final : public Http3SessionBase,
   nsTArray<RefPtr<Http3StreamBase>> mWebTransportSessions;
   nsTArray<RefPtr<Http3StreamBase>> mWebTransportStreams;
   nsTArray<RefPtr<Http3StreamBase>> mTunnelStreams;
+  // Tunnel streams that received datagrams during the current ProcessEvents
+  // drain. Notified once the drain finishes.
+  nsTArray<RefPtr<Http3StreamBase>> mTunnelStreamsWithDatagrams;
 
   bool mHasWebTransportSession = false;
   // When true, we don't add this connection info into the Http/3 excluded list.

@@ -64,6 +64,10 @@ class Http3ConnectUDPStream final : public Http3TunnelStreamBase,
 
   nsresult OnProcessDatagram() override;
 
+  // Deliver every datagram queued since the last call. The outer session calls
+  // this once per ProcessEvents drain instead of once per datagram.
+  void NotifyDatagramsReceived();
+
   // The outer session's outgoing datagram queue has room again: resume the
   // inner connection that was stopped when it filled up.
   void OnOutgoingDatagramSpaceAvailable();

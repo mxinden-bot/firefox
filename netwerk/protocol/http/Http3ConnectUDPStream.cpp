@@ -73,9 +73,17 @@ void Http3ConnectUDPStream::OnDatagramReceived(nsTArray<uint8_t>&& aData) {
   mReceivedData.Push(MakeUnique<UDPPayload>(std::move(aData)));
   PROFILER_MARKER("MasqueDatagramIn", NETWORK, {}, MasqueDatagramMarker, length,
                   static_cast<uint32_t>(mReceivedData.Count()));
-  if (mSyncListener) {
-    mSyncListener->OnPacketReceived(this);
+}
+
+void Http3ConnectUDPStream::NotifyDatagramsReceived() {
+  LOG(("Http3ConnectUDPStream::NotifyDatagramsReceived %p", this));
+
+  if (mRecvState == RECV_DONE || mReceivedData.IsEmpty() || !mSyncListener) {
+    return;
   }
+  PROFILER_MARKER("MasqueDatagramBatch", NETWORK, {}, MasqueDatagramMarker,
+                  uint32_t(0), static_cast<uint32_t>(mReceivedData.Count()));
+  (void)mSyncListener->OnPacketReceived(this);
 }
 
 bool Http3ConnectUDPStream::OnActivated() {

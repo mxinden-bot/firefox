@@ -1174,6 +1174,9 @@ nsresult Http3Session::ProcessEvents() {
               break;
             }
             tunnelStream->OnDatagramReceived(std::move(data));
+            if (!mTunnelStreamsWithDatagrams.Contains(stream)) {
+              mTunnelStreamsWithDatagrams.AppendElement(stream);
+            }
             break;
         }
       } break;
@@ -1186,12 +1189,26 @@ nsresult Http3Session::ProcessEvents() {
     if (NS_FAILED(rv)) {
       LOG(("Http3Session::ProcessEvents [this=%p] rv=%" PRIx32, this,
            static_cast<uint32_t>(rv)));
+      mTunnelStreamsWithDatagrams.Clear();
       return rv;
     }
   }
 
+  NotifyTunnelStreamsWithDatagrams();
   return NS_OK;
 }  // namespace net
+
+void Http3Session::NotifyTunnelStreamsWithDatagrams() {
+  // Move first: notifying re-enters the inner session, which can reach back
+  // into this one.
+  nsTArray<RefPtr<Http3StreamBase>> streams =
+      std::move(mTunnelStreamsWithDatagrams);
+  for (const auto& stream : streams) {
+    if (Http3ConnectUDPStream* udp = stream->GetHttp3ConnectUDPStream()) {
+      udp->NotifyDatagramsReceived();
+    }
+  }
+}
 
 // This function may return a socket error.
 // It will not return an error if socket error is
