@@ -18,6 +18,8 @@
 #include "SSLTokensCache.h"
 #include "ScopedNSSTypes.h"
 #include "WebTransportCertificateVerifier.h"
+#include "mozilla/Atomics.h"
+#include "mozilla/ProfilerCounts.h"
 #include "mozilla/ProfilerMarkers.h"
 #include "mozilla/RandomNum.h"
 #include "mozilla/RefPtr.h"
@@ -160,6 +162,12 @@ nsresult Http3Session::Init(const nsHttpConnectionInfo* aConnInfo,
   mIsTunnel = aIsTunnel;
   mUseNSPRForIO =
       StaticPrefs::network_http_http3_use_nspr_for_io() || aIsTunnel;
+
+  static Atomic<uint32_t> sNextSessionId{1};
+  mSessionId = sNextSessionId++;
+  mSessionKind = aIsTunnel           ? Http3SessionKind::Inner
+                 : isOuterConnection ? Http3SessionKind::Outer
+                                     : Http3SessionKind::Direct;
 
   uint32_t idleTimeout = StaticPrefs::network_http_http3_idle_timeout();
 
@@ -479,7 +487,8 @@ Http3Session::~Http3Session() {
 nsresult Http3Session::ProcessInput(nsIUDPSocket* socket) {
   MOZ_ASSERT(OnSocketThread(), "not on socket thread");
   MOZ_ASSERT(mUdpConn);
-  AUTO_PROFILER_MARKER_UNTYPED("Http3Session::ProcessInput", NETWORK, {});
+  AutoHttp3SessionMarker inputMarker("Http3Session::ProcessInput", mSessionId,
+                                     mSessionKind);
 
   LOG(("Http3Session::ProcessInput writer=%p [this=%p state=%d]",
        mUdpConn.get(), this, mState));
@@ -1222,7 +1231,8 @@ void Http3Session::NotifyTunnelStreamsWithDatagrams() {
 nsresult Http3Session::ProcessOutput(nsIUDPSocket* socket) {
   MOZ_ASSERT(OnSocketThread(), "not on socket thread");
   MOZ_ASSERT(mUdpConn);
-  AUTO_PROFILER_MARKER_UNTYPED("Http3Session::ProcessOutput", NETWORK, {});
+  AutoHttp3SessionMarker outputMarker("Http3Session::ProcessOutput", mSessionId,
+                                      mSessionKind);
 
   LOG(("Http3Session::ProcessOutput reader=%p, [this=%p]", mUdpConn.get(),
        this));
@@ -1234,7 +1244,7 @@ nsresult Http3Session::ProcessOutput(nsIUDPSocket* socket) {
 
   if (mUseNSPRForIO) {
     mSocket = socket;
-    nsresult rv = mHttp3Connection->ProcessOutputAndSendUseNSPRForIO(
+    auto rv = mHttp3Connection->ProcessOutputAndSendUseNSPRForIO(
         this,
         [](void* aContext, uint16_t aFamily, const uint8_t* aAddr,
            uint16_t aPort, const uint8_t* aData, uint32_t aLength) {
@@ -1283,21 +1293,25 @@ nsresult Http3Session::ProcessOutput(nsIUDPSocket* socket) {
           self->mLastWriteTime = PR_IntervalNow();
           return NS_OK;
         },
-        [](void* aContext, uint64_t timeout) {
+        [](void* aContext, uint64_t timeout, uint64_t requestedUs) {
           Http3Session* self = (Http3Session*)aContext;
-          self->SetupTimer(timeout);
+          self->SetupTimer(timeout, requestedUs);
         });
     mSocket = nullptr;
-    return rv;
+    EmitProcessOutputMarker(rv);
+    SampleQuicStats();
+    return rv.result;
   }
 
   // Not using NSPR.
 
   auto rv = mHttp3Connection->ProcessOutputAndSend(
-      this, [](void* aContext, uint64_t timeout) {
+      this, [](void* aContext, uint64_t timeout, uint64_t requestedUs) {
         Http3Session* self = (Http3Session*)aContext;
-        self->SetupTimer(timeout);
+        self->SetupTimer(timeout, requestedUs);
       });
+  EmitProcessOutputMarker(rv);
+  SampleQuicStats();
   if (rv.result == NS_BASE_STREAM_WOULD_BLOCK) {
     // The OS buffer was full. Tell the UDP socket to poll for
     // write-availability.
@@ -1381,13 +1395,80 @@ Http3Session::OnQuicTimeout::GetName(nsACString& aName) {
   return NS_OK;
 }
 
-void Http3Session::SetupTimer(uint64_t aTimeout) {
+PROFILER_DEFINE_COUNT_TOTAL(Http3InnerCwnd, "Network",
+                            "Congestion window of the inner connect-udp "
+                            "connection, in bytes");
+PROFILER_DEFINE_COUNT_TOTAL(Http3InnerBytesInFlight, "Network",
+                            "Bytes in flight on the inner connect-udp "
+                            "connection");
+
+void Http3Session::EmitProcessOutputMarker(
+    const ProcessOutputAndSendResult& aResult) {
+  if (!profiler_is_active_and_unpaused()) {
+    return;
+  }
+  PROFILER_MARKER("Http3ProcessOutput", NETWORK, {}, Http3ProcessOutputMarker,
+                  mSessionId, static_cast<uint8_t>(mSessionKind),
+                  static_cast<uint8_t>(aResult.exit), aResult.packets_written,
+                  aResult.bytes_written, aResult.callback_us);
+}
+
+void Http3Session::SampleQuicStats() {
+  MOZ_ASSERT(OnSocketThread(), "not on socket thread");
+
+  if (!profiler_is_active_and_unpaused() || !mHttp3Connection) {
+    return;
+  }
+
+  // Pulling stats clones them inside neqo, so keep the cadence coarse relative
+  // to the profiler's sampling interval.
+  static constexpr double kSampleIntervalMs = 5.0;
+  TimeStamp now = TimeStamp::Now();
+  if (!mLastQuicSample.IsNull() &&
+      (now - mLastQuicSample).ToMilliseconds() < kSampleIntervalMs) {
+    return;
+  }
+  mLastQuicSample = now;
+
+  NeqoQuicSample sample = mHttp3Connection->QuicSample();
+
+  if (mSessionKind == Http3SessionKind::Inner) {
+    AUTO_PROFILER_COUNT_TOTAL(
+        Http3InnerCwnd,
+        static_cast<int64_t>(sample.cwnd) - static_cast<int64_t>(mLastCwnd));
+    AUTO_PROFILER_COUNT_TOTAL(Http3InnerBytesInFlight,
+                              static_cast<int64_t>(sample.bytes_in_flight) -
+                                  static_cast<int64_t>(mLastBytesInFlight));
+  }
+  mLastCwnd = sample.cwnd;
+  mLastBytesInFlight = sample.bytes_in_flight;
+
+  if (sample.plpmtu != mLastPlpmtu) {
+    PROFILER_MARKER("Http3Pmtu", NETWORK, {}, Http3PmtuMarker, mSessionId,
+                    static_cast<uint8_t>(mSessionKind), sample.plpmtu,
+                    mLastPlpmtu);
+    mLastPlpmtu = sample.plpmtu;
+  }
+
+  if (sample.datagrams_lost != mLastDatagramsLost ||
+      sample.datagrams_dropped_too_big != mLastDatagramsDroppedTooBig) {
+    PROFILER_MARKER("Http3DatagramStats", NETWORK, {}, Http3DatagramStatsMarker,
+                    mSessionId, static_cast<uint8_t>(mSessionKind),
+                    sample.datagrams_lost, sample.datagrams_dropped_too_big);
+    mLastDatagramsLost = sample.datagrams_lost;
+    mLastDatagramsDroppedTooBig = sample.datagrams_dropped_too_big;
+  }
+}
+
+void Http3Session::SetupTimer(uint64_t aTimeout, uint64_t aRequestedUs) {
   MOZ_ASSERT(OnSocketThread(), "not on socket thread");
   // UINT64_MAX indicated a no-op from neqo, which only happens when a
   // connection is in or going to be Closed state.
   if (aTimeout == UINT64_MAX) {
     return;
   }
+
+  bool clamped = false;
 
   // If we're in ZERORTT state, ensure the timeout doesn't exceed the
   // 0-RTT timeout to prevent the session from being closed later than expected.
@@ -1400,6 +1481,7 @@ void Http3Session::SetupTimer(uint64_t aTimeout) {
           static_cast<uint64_t>(zeroRttTimeout - elapsed.ToMilliseconds());
 
       if (elapsed.ToMilliseconds() < zeroRttTimeout && aTimeout > remainingMs) {
+        clamped = true;
         LOG3(("Http3Session::SetupTimer capping timeout from %" PRIu64
               "ms to %" PRIu64 "ms (0-RTT timeout remaining) [this=%p].",
               aTimeout, remainingMs, this));
@@ -1424,6 +1506,11 @@ void Http3Session::SetupTimer(uint64_t aTimeout) {
     // This can only fail on OOM and we'd crash.
     mTimer = NS_NewTimer();
   }
+
+  PROFILER_MARKER("Http3Session::SetupTimer", NETWORK, {},
+                  Http3SetupTimerMarker, mSessionId,
+                  static_cast<uint8_t>(mSessionKind), aRequestedUs, aTimeout,
+                  clamped);
 
   DebugOnly<nsresult> rv = mTimer->InitWithCallback(mTimerCallback, aTimeout,
                                                     nsITimer::TYPE_ONE_SHOT);

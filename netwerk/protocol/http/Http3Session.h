@@ -5,6 +5,7 @@
 #ifndef Http3Session_H_
 #define Http3Session_H_
 
+#include "Http3Markers.h"
 #include "HttpTrafficAnalyzer.h"
 #include "mozilla/Array.h"
 #include "mozilla/WeakPtr.h"
@@ -216,6 +217,9 @@ class Http3Session final : public Http3SessionBase,
     return (mState == CONNECTED) || (mState == ZERORTT);
   }
   bool IsClosing() const { return (mState == CLOSING || mState == CLOSED); }
+
+  uint32_t SessionId() const { return mSessionId; }
+  Http3SessionKind SessionKind() const { return mSessionKind; }
   bool IsClosed() const { return mState == CLOSED; }
 
   bool AddStream(nsAHttpTransaction* aHttpTransaction, int32_t aPriority,
@@ -353,7 +357,13 @@ class Http3Session final : public Http3SessionBase,
   nsresult ProcessTransactionRead(Http3StreamBase* stream);
   nsresult ProcessSlowConsumers();
 
-  void SetupTimer(uint64_t aTimeout);
+  void SetupTimer(uint64_t aTimeout, uint64_t aRequestedUs);
+
+  // Pull cwnd, bytes in flight, path MTU and datagram drop counters out of neqo
+  // and feed them to the profiler. Throttled, and a no-op unless profiling.
+  void SampleQuicStats();
+
+  void EmitProcessOutputMarker(const ProcessOutputAndSendResult& aResult);
 
   enum ResetType {
     RESET,
@@ -432,6 +442,19 @@ class Http3Session final : public Http3SessionBase,
   // True if this is the inner connection of a connect-udp/WebTransport tunnel,
   // i.e. its socket is a tunnel stream rather than a real UDP socket.
   bool mIsTunnel{false};
+
+  // Distinguishes this session's profiler markers from those of the other half
+  // of a tunnel, which shares the socket thread.
+  uint32_t mSessionId{0};
+  Http3SessionKind mSessionKind{Http3SessionKind::Direct};
+
+  // Last values pushed to the profiler by SampleQuicStats.
+  TimeStamp mLastQuicSample;
+  uint64_t mLastCwnd{0};
+  uint64_t mLastBytesInFlight{0};
+  uint64_t mLastPlpmtu{0};
+  uint64_t mLastDatagramsLost{0};
+  uint64_t mLastDatagramsDroppedTooBig{0};
 
   RefPtr<HttpConnectionUDP> mUdpConn;
 

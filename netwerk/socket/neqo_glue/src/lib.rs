@@ -343,7 +343,19 @@ type SendFunc = extern "C" fn(
     size: u32,
 ) -> nsresult;
 
-type SetTimerFunc = extern "C" fn(context: *mut c_void, timeout: u64);
+/// `timeout` is the value actually armed, in milliseconds; `requested_us` is
+/// what neqo asked for, before the zero bump and the millisecond truncation.
+type SetTimerFunc = extern "C" fn(context: *mut c_void, timeout: u64, requested_us: u64);
+
+/// Why a `process_output` drain stopped.
+#[repr(u8)]
+#[derive(Clone, Copy)]
+pub enum OutputExit {
+    Callback = 0,
+    None = 1,
+    WouldBlock = 2,
+    Error = 3,
+}
 
 #[cfg(unix)]
 type BorrowedSocket = std::os::fd::BorrowedFd<'static>;
@@ -1287,14 +1299,17 @@ pub extern "C" fn neqo_http3conn_process_output_and_send_use_nspr_for_io(
     context: *mut c_void,
     send_func: SendFunc,
     set_timer_func: SetTimerFunc,
-) -> nsresult {
+) -> ProcessOutputAndSendResult {
     assert!(conn.socket.is_none(), "NSPR IO path");
+
+    let mut bytes_written = 0usize;
+    let mut packets_written = 0u32;
 
     loop {
         match conn.conn.process_output(Instant::now()) {
             Output::Datagram(dg) => {
                 let Ok(len) = u32::try_from(dg.len()) else {
-                    return NS_ERROR_UNEXPECTED;
+                    return ProcessOutputAndSendResult::err(NS_ERROR_UNEXPECTED);
                 };
                 let rv = match dg.destination().ip() {
                     IpAddr::V4(v4) => send_func(
@@ -1315,8 +1330,20 @@ pub extern "C" fn neqo_http3conn_process_output_and_send_use_nspr_for_io(
                     ),
                 };
                 if rv != NS_OK {
-                    return rv;
+                    return ProcessOutputAndSendResult {
+                        result: rv,
+                        bytes_written: bytes_written.try_into().unwrap_or(u32::MAX),
+                        packets_written,
+                        exit: if rv == NS_BASE_STREAM_WOULD_BLOCK {
+                            OutputExit::WouldBlock
+                        } else {
+                            OutputExit::Error
+                        },
+                        callback_us: 0,
+                    };
                 }
+                bytes_written += len as usize;
+                packets_written += 1;
             }
             Output::Callback(to) => {
                 let timeout = if to.is_zero() {
@@ -1325,24 +1352,54 @@ pub extern "C" fn neqo_http3conn_process_output_and_send_use_nspr_for_io(
                     to
                 };
                 let Ok(timeout) = u64::try_from(timeout.as_millis()) else {
-                    return NS_ERROR_UNEXPECTED;
+                    return ProcessOutputAndSendResult::err(NS_ERROR_UNEXPECTED);
                 };
-                set_timer_func(context, timeout);
-                break;
+                let requested_us = u64::try_from(to.as_micros()).unwrap_or(u64::MAX);
+                set_timer_func(context, timeout, requested_us);
+                return ProcessOutputAndSendResult {
+                    result: NS_OK,
+                    bytes_written: bytes_written.try_into().unwrap_or(u32::MAX),
+                    packets_written,
+                    exit: OutputExit::Callback,
+                    callback_us: requested_us,
+                };
             }
             Output::None => {
-                set_timer_func(context, u64::MAX);
-                break;
+                set_timer_func(context, u64::MAX, u64::MAX);
+                return ProcessOutputAndSendResult {
+                    result: NS_OK,
+                    bytes_written: bytes_written.try_into().unwrap_or(u32::MAX),
+                    packets_written,
+                    exit: OutputExit::None,
+                    callback_us: 0,
+                };
             }
         }
     }
-    NS_OK
 }
 
 #[repr(C)]
 pub struct ProcessOutputAndSendResult {
     pub result: nsresult,
     pub bytes_written: u32,
+    /// Datagrams handed to the send path in this drain. A GSO batch counts as
+    /// one per segment.
+    pub packets_written: u32,
+    pub exit: OutputExit,
+    /// Duration neqo asked to be woken after, when `exit` is `Callback`.
+    pub callback_us: u64,
+}
+
+impl ProcessOutputAndSendResult {
+    const fn err(result: nsresult) -> Self {
+        Self {
+            result,
+            bytes_written: 0,
+            packets_written: 0,
+            exit: OutputExit::Error,
+            callback_us: 0,
+        }
+    }
 }
 
 /// Process output, retrieving outgoing datagrams from the Neqo state machine
@@ -1354,6 +1411,9 @@ pub extern "C" fn neqo_http3conn_process_output_and_send(
     set_timer_func: SetTimerFunc,
 ) -> ProcessOutputAndSendResult {
     let mut bytes_written: usize = 0;
+    let mut packets_written: u32 = 0;
+    let mut exit = OutputExit::WouldBlock;
+    let mut callback_us = 0;
     loop {
         let Ok(max_gso_segments) = min(
             static_prefs::pref!("network.http.http3.max_gso_segments")
@@ -1366,10 +1426,7 @@ pub extern "C" fn neqo_http3conn_process_output_and_send(
         )
         .try_into() else {
             qerror!("Socket return GSO size of 0");
-            return ProcessOutputAndSendResult {
-                result: NS_ERROR_UNEXPECTED,
-                bytes_written: 0,
-            };
+            return ProcessOutputAndSendResult::err(NS_ERROR_UNEXPECTED);
         };
 
         let output = conn
@@ -1390,10 +1447,7 @@ pub extern "C" fn neqo_http3conn_process_output_and_send(
                     && matches!(dg.destination(), SocketAddr::V6(addr) if addr.ip().is_loopback())
                 {
                     qdebug!("network.http.http3.block_loopback_ipv6_addr is set, returning NS_ERROR_CONNECTION_REFUSED for localhost IPv6");
-                    return ProcessOutputAndSendResult {
-                        result: NS_ERROR_CONNECTION_REFUSED,
-                        bytes_written: 0,
-                    };
+                    return ProcessOutputAndSendResult::err(NS_ERROR_CONNECTION_REFUSED);
                 }
 
                 match conn.socket.as_mut().expect("non NSPR IO").send(&dg) {
@@ -1409,6 +1463,9 @@ pub extern "C" fn neqo_http3conn_process_output_and_send(
                                 // write-availability.
                                 result: NS_BASE_STREAM_WOULD_BLOCK,
                                 bytes_written: bytes_written.try_into().unwrap_or(u32::MAX),
+                                packets_written,
+                                exit: OutputExit::WouldBlock,
+                                callback_us: 0,
                             };
                         } else {
                             qwarn!("dropping datagram as socket would block");
@@ -1441,13 +1498,11 @@ pub extern "C" fn neqo_http3conn_process_output_and_send(
                     }
                     Err(e) => {
                         qwarn!("failed to send datagram: {}", e);
-                        return ProcessOutputAndSendResult {
-                            result: into_nsresult(&e),
-                            bytes_written: 0,
-                        };
+                        return ProcessOutputAndSendResult::err(into_nsresult(&e));
                     }
                 }
                 bytes_written += dg.data().len();
+                packets_written += u32::try_from(dg.num_datagrams()).unwrap_or(u32::MAX);
 
                 // Glean metrics
                 conn.datagram_size_sent.accumulate(dg.data().len() as u64);
@@ -1471,16 +1526,17 @@ pub extern "C" fn neqo_http3conn_process_output_and_send(
                     to
                 };
                 let Ok(timeout) = u64::try_from(timeout.as_millis()) else {
-                    return ProcessOutputAndSendResult {
-                        result: NS_ERROR_UNEXPECTED,
-                        bytes_written: 0,
-                    };
+                    return ProcessOutputAndSendResult::err(NS_ERROR_UNEXPECTED);
                 };
-                set_timer_func(context, timeout);
+                let requested_us = u64::try_from(to.as_micros()).unwrap_or(u64::MAX);
+                set_timer_func(context, timeout, requested_us);
+                exit = OutputExit::Callback;
+                callback_us = requested_us;
                 break;
             }
             OutputBatch::None => {
-                set_timer_func(context, u64::MAX);
+                set_timer_func(context, u64::MAX, u64::MAX);
+                exit = OutputExit::None;
                 break;
             }
         }
@@ -1489,12 +1545,41 @@ pub extern "C" fn neqo_http3conn_process_output_and_send(
     ProcessOutputAndSendResult {
         result: NS_OK,
         bytes_written: bytes_written.try_into().unwrap_or(u32::MAX),
+        packets_written,
+        exit,
+        callback_us,
     }
 }
 
 #[no_mangle]
 pub extern "C" fn neqo_http3conn_close(conn: &mut NeqoHttp3Conn, error: u64) {
     conn.conn.close(Instant::now(), error, "");
+}
+
+/// Transport state the profiler graphs: the congestion controller, the probed
+/// path MTU, and the datagram drop counters.
+#[repr(C)]
+pub struct NeqoQuicSample {
+    pub cwnd: u64,
+    pub bytes_in_flight: u64,
+    pub plpmtu: u64,
+    pub datagrams_lost: u64,
+    pub datagrams_dropped_too_big: u64,
+}
+
+/// Sample the transport state. Callers should only do this while profiling:
+/// [`Http3Client::transport_stats`] clones the whole [`neqo_transport::Stats`].
+#[no_mangle]
+pub extern "C" fn neqo_http3conn_quic_sample(conn: &NeqoHttp3Conn) -> NeqoQuicSample {
+    let stats = conn.conn.transport_stats();
+    let to_u64 = |v: usize| u64::try_from(v).unwrap_or(u64::MAX);
+    NeqoQuicSample {
+        cwnd: to_u64(stats.cc.cwnd),
+        bytes_in_flight: to_u64(stats.cc.bytes_in_flight),
+        plpmtu: to_u64(stats.pmtud_pmtu),
+        datagrams_lost: to_u64(stats.datagram_tx.lost),
+        datagrams_dropped_too_big: to_u64(stats.datagram_tx.dropped_too_big),
+    }
 }
 
 fn is_excluded_header(name: &str) -> bool {

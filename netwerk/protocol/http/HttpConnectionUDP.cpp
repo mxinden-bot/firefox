@@ -1130,6 +1130,10 @@ void HttpConnectionUDP::OnQuicTimeoutExpired() {
     return;
   }
 
+  AutoHttp3SessionMarker marker("HttpConnectionUDP::OnQuicTimeoutExpired",
+                                mHttp3Session->SessionId(),
+                                mHttp3Session->SessionKind());
+
   nsresult rv = mHttp3Session->ProcessOutputAndEvents(mSocket);
   if (NS_FAILED(rv)) {
     CloseTransaction(mHttp3Session, rv);
@@ -1162,13 +1166,15 @@ void HttpConnectionUDP::NotifyDataWrite() {
 // called on the socket transport thread
 nsresult HttpConnectionUDP::RecvData() {
   MOZ_ASSERT(OnSocketThread(), "not on socket thread");
-  AUTO_PROFILER_MARKER_UNTYPED("HttpConnectionUDP::RecvData", NETWORK, {});
-
   // if the transaction was dropped...
   if (!mHttp3Session) {
     LOG(("  no Http3Session; ignoring event\n"));
     return NS_OK;
   }
+
+  AutoHttp3SessionMarker marker("HttpConnectionUDP::RecvData",
+                                mHttp3Session->SessionId(),
+                                mHttp3Session->SessionKind());
 
   nsresult rv = mHttp3Session->RecvData(mSocket);
   LOG(("HttpConnectionUDP::OnInputReady %p rv=%" PRIx32, this,
@@ -1182,13 +1188,15 @@ nsresult HttpConnectionUDP::RecvData() {
 // called on the socket transport thread
 nsresult HttpConnectionUDP::SendData() {
   MOZ_ASSERT(OnSocketThread(), "not on socket thread");
-  AUTO_PROFILER_MARKER_UNTYPED("HttpConnectionUDP::SendData", NETWORK, {});
-
   // if the transaction was dropped...
   if (!mHttp3Session) {
     LOG(("  no Http3Session; ignoring event\n"));
     return NS_OK;
   }
+
+  AutoHttp3SessionMarker marker("HttpConnectionUDP::SendData",
+                                mHttp3Session->SessionId(),
+                                mHttp3Session->SessionKind());
 
   nsresult rv = mHttp3Session->SendData(mSocket);
   LOG(("HttpConnectionUDP::OnInputReady %p rv=%" PRIx32, this,

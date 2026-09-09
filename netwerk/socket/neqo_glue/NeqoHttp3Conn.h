@@ -67,11 +67,13 @@ class NeqoHttp3Conn final {
     return neqo_http3conn_process_input(this);
   }
 
-  nsresult ProcessOutputAndSendUseNSPRForIO(void* aContext, SendFunc aSendFunc,
-                                            SetTimerFunc aSetTimerFunc) {
+  ProcessOutputAndSendResult ProcessOutputAndSendUseNSPRForIO(
+      void* aContext, SendFunc aSendFunc, SetTimerFunc aSetTimerFunc) {
     return neqo_http3conn_process_output_and_send_use_nspr_for_io(
         this, aContext, aSendFunc, aSetTimerFunc);
   }
+
+  NeqoQuicSample QuicSample() { return neqo_http3conn_quic_sample(this); }
 
   ProcessOutputAndSendResult ProcessOutputAndSend(void* aContext,
                                                   SetTimerFunc aSetTimerFunc) {
