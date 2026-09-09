@@ -16786,6 +16786,13 @@
   mirror: always
   rust: true
 
+# Pace the inner connection of a connect-udp tunnel. Off by default: the outer
+# connection paces the same datagrams again on its way out.
+- name: network.http.http3.masque.inner_pacing
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # When true, force TRR connections to use HTTP/3 first
 - name: network.trr.force_http3_first
   type: RelaxedAtomicBool

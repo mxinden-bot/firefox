@@ -389,6 +389,7 @@ impl NeqoHttp3Conn {
         idle_timeout: u32,
         fast_pto: u32,
         pmtud_enabled: bool,
+        pacing_enabled: bool,
         socket: Option<i64>,
     ) -> Result<RefPtr<Self>, nsresult> {
         // Nss init.
@@ -511,6 +512,7 @@ impl NeqoHttp3Conn {
             // MLKEM support is configured further below. By default, disable it.
             .mlkem(false)
             .pmtud(pmtud_enabled)
+            .pacing(pacing_enabled)
             .spurious_recovery(spurious_recovery)
             .hystart_css_baseline(css_baseline);
 
@@ -1129,6 +1131,7 @@ pub extern "C" fn neqo_http3conn_new(
         idle_timeout,
         fast_pto,
         pmtud_enabled,
+        true,
         Some(socket),
     ) {
         Ok(http3_conn) => {
@@ -1155,6 +1158,7 @@ pub extern "C" fn neqo_http3conn_new_use_nspr_for_io(
     qlog_dir: &nsACString,
     idle_timeout: u32,
     fast_pto: u32,
+    pacing_enabled: bool,
     result: &mut *const NeqoHttp3Conn,
 ) -> nsresult {
     *result = ptr::null_mut();
@@ -1174,6 +1178,7 @@ pub extern "C" fn neqo_http3conn_new_use_nspr_for_io(
         idle_timeout,
         fast_pto,
         false,
+        pacing_enabled,
         None,
     ) {
         Ok(http3_conn) => {

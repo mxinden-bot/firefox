@@ -186,7 +186,11 @@ nsresult Http3Session::Init(const nsHttpConnectionInfo* aConnInfo,
         StaticPrefs::network_http_http3_max_stream_data(),
         StaticPrefs::network_http_http3_version_negotiation_enabled(),
         mConnInfo->GetWebTransport(), gHttpHandler->Http3QlogDir(), idleTimeout,
-        fastPto, getter_AddRefs(mHttp3Connection));
+        fastPto,
+        // Pacing on the inner connection only delays datagrams that the outer
+        // connection paces again. See Bug 1978893.
+        !aIsTunnel || StaticPrefs::network_http_http3_masque_inner_pacing(),
+        getter_AddRefs(mHttp3Connection));
   } else {
     rv = NeqoHttp3Conn::Init(
         mSocketControl->GetHostName(), alpn, selfAddr, peerAddr,
