@@ -131,6 +131,9 @@ pub struct NeqoHttp3Conn {
     /// Buffered outbound datagram from previous send that failed with
     /// WouldBlock. To be sent once UDP socket has write-availability again.
     buffered_outbound_datagram: Option<datagram::Batch>,
+    /// Same, for the NSPR IO path, where the refusal comes from a full
+    /// connect-udp tunnel queue rather than a full socket buffer.
+    buffered_nspr_datagram: Option<Datagram>,
 
     datagram_segment_size_sent: LocalMemoryDistribution<'static>,
     datagram_segment_size_received: LocalMemoryDistribution<'static>,
@@ -635,6 +638,7 @@ impl NeqoHttp3Conn {
             datagram_segments_received: networking::http_3_udp_datagram_segments_received
                 .start_buffer(),
             buffered_outbound_datagram: None,
+            buffered_nspr_datagram: None,
             would_block_counter: WouldBlockCounter::new(),
             webtransport_send_groups: HashMap::new(),
             #[cfg(not(target_os = "android"))]
@@ -1311,7 +1315,12 @@ pub extern "C" fn neqo_http3conn_process_output_and_send_use_nspr_for_io(
     let mut packets_written = 0u32;
 
     loop {
-        match conn.conn.process_output(Instant::now()) {
+        let output = conn
+            .buffered_nspr_datagram
+            .take()
+            .map(Output::Datagram)
+            .unwrap_or_else(|| conn.conn.process_output(Instant::now()));
+        match output {
             Output::Datagram(dg) => {
                 let Ok(len) = u32::try_from(dg.len()) else {
                     return ProcessOutputAndSendResult::err(NS_ERROR_UNEXPECTED);
@@ -1335,6 +1344,12 @@ pub extern "C" fn neqo_http3conn_process_output_and_send_use_nspr_for_io(
                     ),
                 };
                 if rv != NS_OK {
+                    // The tunnel refused the datagram without consuming it. Hold
+                    // it rather than dropping it: neqo counts it as sent, so a
+                    // drop costs a loss-recovery round.
+                    if rv == NS_BASE_STREAM_WOULD_BLOCK {
+                        conn.buffered_nspr_datagram = Some(dg);
+                    }
                     return ProcessOutputAndSendResult {
                         result: rv,
                         bytes_written: bytes_written.try_into().unwrap_or(u32::MAX),
