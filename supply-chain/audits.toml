@@ -4935,7 +4935,7 @@ delta = "0.22.0 -> 0.23.0"
 [[audits.mls-rs-provider-sqlite]]
 who = "Benjamin Beurdouche <beurdouche@mozilla.com>"
 criteria = "safe-to-deploy"
-delta = "0.23.0 -> 0.23.0@git:6e6d1ad67f957faf64823d703fc32885c90115cf"
+delta = "0.23.0 -> 0.23.0@git:154b0e9e7968e0588f5b613583fe2b7464bddd4e"
 importable = false
 
 [[audits.mockito]]
