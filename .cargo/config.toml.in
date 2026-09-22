@@ -105,9 +105,9 @@ git = "https://github.com/mozilla/midir.git"
 rev = "54759f681f3b523e120d047adec2bb1a97152017"
 replace-with = "vendored-sources"
 
-[source."git+https://github.com/mozilla/mls-platform-api?rev=eb1c880304127bcb7d0ee6d701fd4ca9ebc73403"]
+[source."git+https://github.com/mozilla/mls-platform-api?rev=154b0e9e7968e0588f5b613583fe2b7464bddd4e"]
 git = "https://github.com/mozilla/mls-platform-api"
-rev = "eb1c880304127bcb7d0ee6d701fd4ca9ebc73403"
+rev = "154b0e9e7968e0588f5b613583fe2b7464bddd4e"
 replace-with = "vendored-sources"
 
 [source."git+https://github.com/mozilla/mp4parse-rust?rev=f0c80783227a1fb46f34cb04e10607045eac4297"]
