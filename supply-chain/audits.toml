@@ -4981,7 +4981,7 @@ delta = "0.3.0 -> 0.4.1"
 [[audits.mtu]]
 who = "Max Inden <mail@max-inden.de>"
 criteria = "safe-to-deploy"
-delta = "0.4.1 -> 0.4.1@git:965bea08e57a7b79679f5ea4a51889fb6c669a15"
+delta = "0.4.1 -> 0.4.1@git:28cacc8ea2b035779ae504d837e3e25331264347"
 importable = false
 
 [[audits.multiversion]]
