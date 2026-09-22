@@ -5794,16 +5794,15 @@ dependencies = [
 
 [[package]]
 name = "nss-rs"
-version = "0.14.6"
-source = "git+https://github.com/mozilla/nss-rs#63c63046208f587573f71bb3885f16d10e0bf4eb"
+version = "0.16.1"
+source = "git+https://github.com/mozilla/nss-rs#ba8a3f6acffc7e25749054969ccbbb3ca615df7f"
 dependencies = [
  "bindgen 0.72.999",
+ "derive_more",
  "enum-map",
  "log",
  "mozbuild",
- "once_cell",
- "pkcs11-bindings",
- "semver",
+ "pkg-config",
  "serde",
  "serde_derive",
  "strum",
@@ -6358,9 +6357,9 @@ dependencies = [
 
 [[package]]
 name = "pkg-config"
-version = "0.3.26"
+version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
+checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "places"
