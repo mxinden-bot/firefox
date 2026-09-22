@@ -303,6 +303,7 @@ impl HttpServer for Http3TestServer {
         while let Some(event) = self.server.next_event() {
             qtrace!("Event: {:?}", event);
             match event {
+                Http3ServerEvent::OutgoingDatagramSpaceAvailable { .. } => {}
                 Http3ServerEvent::Headers {
                     stream,
                     headers,
@@ -1122,6 +1123,7 @@ impl HttpServer for Http3ReverseProxyServer {
         while let Some(event) = self.server.next_event() {
             qtrace!("Event: {:?}", event);
             match event {
+                Http3ServerEvent::OutgoingDatagramSpaceAvailable { .. } => {}
                 Http3ServerEvent::Headers {
                     stream,
                     headers,
@@ -1253,6 +1255,7 @@ impl HttpServer for Http3ConnectProxyServer {
         while let Some(event) = self.server.next_event() {
             qtrace!("Event: {:?}", event);
             match event {
+                Http3ServerEvent::OutgoingDatagramSpaceAvailable { .. } => {}
                 Http3ServerEvent::Headers {
                     stream,
                     headers,
@@ -1654,16 +1657,10 @@ fn spawn_server<S: HttpServer + Unpin + 'static>(
         Ok(s) => s,
     };
 
-    let local_addr = match socket.local_addr() {
-        Err(err) => {
-            eprintln!("Socket local address not bound: {}", err);
-            exit(1)
-        }
-        Ok(s) => s,
-    };
+    let local_addr = socket.local_addr();
 
     task_set
-        .spawn_local(Runner::new(server, Box::new(Instant::now), vec![(local_addr, socket)]).run());
+        .spawn_local(Runner::new(server, Box::new(Instant::now), vec![socket]).run());
     hosts.push(local_addr);
 
     Ok(())
