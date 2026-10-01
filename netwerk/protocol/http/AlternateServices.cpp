@@ -65,7 +65,8 @@ void AltSvcMapping::ProcessHeader(
     bool privateBrowsing, nsIInterfaceRequestor* callbacks,
     nsProxyInfo* proxyInfo, uint32_t caps,
     const OriginAttributes& originAttributes,
-    nsHttpConnectionInfo* aTransConnInfo, bool aDontValidate /* = false */) {
+    nsHttpConnectionInfo* aTransConnInfo, bool aReceivedOverHttp3 /* = false */,
+    bool aDontValidate /* = false */) {
   LOG(("AltSvcMapping::ProcessHeader: %s\n", buf.get()));
   // In tests, this might be called off the main thread. If so, dispatch it
   // synchronously to the main thread.
@@ -88,11 +89,12 @@ void AltSvcMapping::ProcessHeader(
             [buf(buf), originScheme(originScheme), originHost(originHost),
              originPort, userName = std::move(userName), privateBrowsing,
              cb = std::move(cb), info = std::move(info), caps, originAttributes,
-             connInfo = std::move(connInfo), aDontValidate]() {
+             connInfo = std::move(connInfo), aReceivedOverHttp3,
+             aDontValidate]() {
               AltSvcMapping::ProcessHeader(
                   buf, originScheme, originHost, originPort, userName,
                   privateBrowsing, cb, info, caps, originAttributes, connInfo,
-                  aDontValidate);
+                  aReceivedOverHttp3, aDontValidate);
             }));
 
     return;
@@ -235,14 +237,23 @@ void AltSvcMapping::ProcessHeader(
         // ordinary Alt-Svc header (bug 2051272). For h3 we want real validation
         // (to warm the h3 connection), so additionally require the routed
         // endpoint to match; under non-HE those fields are in the hash key, so
-        // this is a no-op. For h2, AltSvcTransaction validation can't complete
-        // under HE (bug 2051272 #2), so keep skipping on a hash-key match.
+        // this is a no-op. A response that already came over h3 from the
+        // origin's own endpoint has nothing left to warm, and under HE its
+        // conninfo carries no h3 NPN token, so skip on that too. For h2,
+        // AltSvcTransaction validation can't complete under HE (bug 2051272
+        // #2), so keep skipping on a hash-key match.
         bool sameHashKey = ci->HashKey().Equals(aTransConnInfo->HashKey());
         if (ci->IsHttp3()) {
-          if (sameHashKey &&
+          bool sameRoute =
               ci->GetRoutedHost().Equals(aTransConnInfo->GetRoutedHost()) &&
               ci->RoutedPort() == aTransConnInfo->RoutedPort() &&
-              ci->GetNPNToken().Equals(aTransConnInfo->GetNPNToken())) {
+              ci->GetNPNToken().Equals(aTransConnInfo->GetNPNToken());
+          bool originOverH3 =
+              aReceivedOverHttp3 &&
+              aMapping->AlternateHost().EqualsIgnoreCase(
+                  aMapping->OriginHost().get()) &&
+              aMapping->AlternatePort() == aMapping->OriginPort();
+          if (sameHashKey && (sameRoute || originOverH3)) {
             aDontValidate = true;
           }
         } else if (sameHashKey) {

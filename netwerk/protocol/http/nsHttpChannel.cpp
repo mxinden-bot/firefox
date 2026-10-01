@@ -3078,10 +3078,10 @@ void nsHttpChannel::ProcessAltService(nsHttpConnectionInfo* aTransConnInfo) {
         this, originAttributes);
   }
 
-  AltSvcMapping::ProcessHeader(altSvc, scheme, originHost, originPort,
-                               mUsername, mPrivateBrowsing, callbacks,
-                               proxyInfo, mCaps & NS_HTTP_DISALLOW_SPDY,
-                               originAttributes, aTransConnInfo);
+  AltSvcMapping::ProcessHeader(
+      altSvc, scheme, originHost, originPort, mUsername, mPrivateBrowsing,
+      callbacks, proxyInfo, mCaps & NS_HTTP_DISALLOW_SPDY, originAttributes,
+      aTransConnInfo, mResponseHead->Version() == HttpVersion::v3_0);
 }
 
 nsresult nsHttpChannel::ProcessResponse(nsHttpConnectionInfo* aConnInfo) {

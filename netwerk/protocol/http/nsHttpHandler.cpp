@@ -3064,7 +3064,7 @@ void nsHttpHandler::MaybeAddAltSvcForTesting(
     AltSvcMapping::ProcessHeader(*map, nsCString("https"), originHost,
                                  originPort, aUsername, aPrivateBrowsing,
                                  aCallbacks, nullptr, 0, aOriginAttributes,
-                                 nullptr, true);
+                                 nullptr, false, true);
   }
 }
 
