@@ -3599,6 +3599,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4a1e36c821dbe04574f602848a19f742f4fb3c98d40449f11bcad18d6b17421"
 
 [[package]]
+name = "humantime"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15cdd26707701c53297e2fa6afb323d55fbc1d0810c3aec078ae3ef0424c3c15"
+
+[[package]]
 name = "hyper"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5457,7 +5463,7 @@ dependencies = [
 [[package]]
 name = "mtu"
 version = "0.4.1"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mozilla/neqo?rev=a47d0c13afe0f52b1b9df935d066da98176bc906#a47d0c13afe0f52b1b9df935d066da98176bc906"
 dependencies = [
  "cfg_aliases",
  "libc",
@@ -5540,7 +5546,7 @@ dependencies = [
 [[package]]
 name = "neqo-bin"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mozilla/neqo?rev=a47d0c13afe0f52b1b9df935d066da98176bc906#a47d0c13afe0f52b1b9df935d066da98176bc906"
 dependencies = [
  "cfg_aliases",
  "clap",
@@ -5568,7 +5574,7 @@ dependencies = [
 [[package]]
 name = "neqo-common"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mozilla/neqo?rev=a47d0c13afe0f52b1b9df935d066da98176bc906#a47d0c13afe0f52b1b9df935d066da98176bc906"
 dependencies = [
  "enum-map",
  "env_logger",
@@ -5586,7 +5592,7 @@ dependencies = [
 [[package]]
 name = "neqo-http3"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mozilla/neqo?rev=a47d0c13afe0f52b1b9df935d066da98176bc906#a47d0c13afe0f52b1b9df935d066da98176bc906"
 dependencies = [
  "enumset",
  "http",
@@ -5606,12 +5612,11 @@ dependencies = [
 [[package]]
 name = "neqo-qpack"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mozilla/neqo?rev=a47d0c13afe0f52b1b9df935d066da98176bc906#a47d0c13afe0f52b1b9df935d066da98176bc906"
 dependencies = [
  "log",
  "neqo-common",
  "neqo-transport",
- "qlog",
  "rustc-hash 2.1.1",
  "static_assertions",
  "thiserror 2.0.12",
@@ -5620,7 +5625,7 @@ dependencies = [
 [[package]]
 name = "neqo-transport"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mozilla/neqo?rev=a47d0c13afe0f52b1b9df935d066da98176bc906#a47d0c13afe0f52b1b9df935d066da98176bc906"
 dependencies = [
  "enum-map",
  "enumset",
@@ -5642,7 +5647,7 @@ dependencies = [
 [[package]]
 name = "neqo-udp"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mozilla/neqo?rev=a47d0c13afe0f52b1b9df935d066da98176bc906#a47d0c13afe0f52b1b9df935d066da98176bc906"
 dependencies = [
  "cfg_aliases",
  "libc",
@@ -6751,14 +6756,14 @@ dependencies = [
 
 [[package]]
 name = "qlog"
-version = "0.16.0"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16689c500fede96aa7d5e1f8924abe08fafb65146d7e192826bb5fb57a1e1ad0"
+checksum = "558dc1a757765c329efc2465e55991849998c8e8878f8d1974daee18813de6d5"
 dependencies = [
+ "humantime",
  "serde",
  "serde_json",
  "serde_with",
- "smallvec",
 ]
 
 [[package]]

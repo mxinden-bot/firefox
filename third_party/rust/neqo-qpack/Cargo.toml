@@ -69,10 +69,6 @@ path = "./../neqo-common"
 path = "./../neqo-transport"
 default-features = false
 
-[dependencies.qlog]
-version = "0.16.0"
-default-features = false
-
 [dependencies.rustc-hash]
 version = "2.1"
 features = ["std"]

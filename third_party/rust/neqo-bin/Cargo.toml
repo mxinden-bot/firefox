@@ -151,7 +151,7 @@ git = "https://github.com/mozilla/nss-rs"
 package = "test-fixture"
 
 [dependencies.qlog]
-version = "0.16.0"
+version = "0.18.1"
 default-features = false
 
 [dependencies.quinn-udp]

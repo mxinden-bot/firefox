@@ -3562,6 +3562,11 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-run"
 delta = "1.7.1 -> 1.8.0"
 
+[[audits.humantime]]
+who = "Max Inden <mail@max-inden.de>"
+criteria = "safe-to-deploy"
+version = "2.4.0"
+
 [[audits.hyper]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-run"
@@ -4991,7 +4996,7 @@ delta = "0.3.0 -> 0.4.1"
 [[audits.mtu]]
 who = "Max Inden <mail@max-inden.de>"
 criteria = "safe-to-deploy"
-delta = "0.4.1 -> 0.4.1@git:28cacc8ea2b035779ae504d837e3e25331264347"
+delta = "0.4.1 -> 0.4.1@git:a47d0c13afe0f52b1b9df935d066da98176bc906"
 importable = false
 
 [[audits.multiversion]]
@@ -5952,6 +5957,11 @@ delta = "0.13.0 -> 0.15.2"
 who = "Oskar Mansfeld <git@omansfeld.net>"
 criteria = "safe-to-deploy"
 delta = "0.15.2 -> 0.16.0"
+
+[[audits.qlog]]
+who = "Max Inden <mail@max-inden.de>"
+criteria = "safe-to-deploy"
+delta = "0.16.0 -> 0.18.1"
 
 [[audits.quick-xml]]
 who = "Lars Eggert <lars@eggert.org>"
