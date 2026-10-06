@@ -3098,6 +3098,7 @@ dependencies = [
  "sitecategories",
  "static_prefs",
  "storage",
+ "tracing",
  "trust-anchors",
  "unic-langid",
  "unic-langid-ffi",
