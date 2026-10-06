@@ -280,7 +280,7 @@ likely to give us more information about your crash.
 ### Turning on QUIC logging
 
 This can be done by setting `MOZ_LOG` to
-`timestamp,rotate:200,nsHttp:5,neqo_http3::*:5,neqo_transport::*:5`.
+`timestamp,rotate:200,nsHttp:5,neqo_common::*:5,neqo_transport::*:5,neqo_http3::*:5,neqo_qpack::*:5,neqo_udp::*:5,neqo_glue::*:5,nss_rs::*:5`.
 
 ### Logging only HTTP request and response headers
 

@@ -100,7 +100,7 @@ const gLoggingPresets = {
   },
   http3: {
     modules:
-      "timestamp,sync,nsHttp:5,nsSocketTransport:5,nsHostResolver:5,neqo_http3::*:5,neqo_transport::*:5",
+      "timestamp,sync,nsHttp:5,nsSocketTransport:5,nsHostResolver:5,neqo_common::*:5,neqo_transport::*:5,neqo_http3::*:5,neqo_qpack::*:5,neqo_udp::*:5,neqo_glue::*:5,nss_rs::*:5",
     l10nIds: {
       label: "about-logging-preset-networking-http3-label",
       description: "about-logging-preset-networking-http3-description",
