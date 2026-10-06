@@ -52,6 +52,7 @@ memory = false
 bench = [
     "test-fixture/bench",
     "log/release_max_level_warn",
+    "tracing/release_max_level_warn",
 ]
 build-fuzzing-corpus = [
     "hex/alloc",
@@ -120,6 +121,19 @@ default-features = false
 
 [dependencies.thiserror]
 version = "2.0.12"
+default-features = false
+
+[dependencies.tracing]
+version = "0.1.37"
+features = ["std"]
+default-features = false
+
+[dependencies.tracing-subscriber]
+version = "0.3.20"
+features = [
+    "fmt",
+    "std",
+]
 default-features = false
 
 [dev-dependencies.criterion]

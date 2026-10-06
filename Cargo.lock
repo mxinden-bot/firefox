@@ -3569,7 +3569,6 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
- "log",
  "mozilla-central-workspace-hack",
  "neqo-bin",
  "neqo-common",
@@ -3579,6 +3578,7 @@ dependencies = [
  "nss-rs",
  "socket2",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -5463,7 +5463,7 @@ dependencies = [
 [[package]]
 name = "mtu"
 version = "0.4.1"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
  "cfg_aliases",
  "libc",
@@ -5546,7 +5546,7 @@ dependencies = [
 [[package]]
 name = "neqo-bin"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
  "cfg_aliases",
  "clap",
@@ -5555,7 +5555,6 @@ dependencies = [
  "hex",
  "http",
  "libc",
- "log",
  "neqo-common",
  "neqo-http3",
  "neqo-transport",
@@ -5569,12 +5568,13 @@ dependencies = [
  "test-fixture",
  "thiserror 2.0.12",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
 name = "neqo-common"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
  "enum-map",
  "env_logger",
@@ -5586,17 +5586,18 @@ dependencies = [
  "static_assertions",
  "strum",
  "thiserror 2.0.12",
+ "tracing",
+ "tracing-subscriber",
  "windows",
 ]
 
 [[package]]
 name = "neqo-http3"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
  "enumset",
  "http",
- "log",
  "neqo-common",
  "neqo-qpack",
  "neqo-transport",
@@ -5607,31 +5608,31 @@ dependencies = [
  "static_assertions",
  "strum",
  "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]
 name = "neqo-qpack"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
- "log",
  "neqo-common",
  "neqo-transport",
  "qlog",
  "rustc-hash 2.1.1",
  "static_assertions",
  "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]
 name = "neqo-transport"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
  "enum-map",
  "enumset",
  "indexmap",
- "log",
  "mtu",
  "neqo-common",
  "nss-rs",
@@ -5643,18 +5644,19 @@ dependencies = [
  "static_assertions",
  "strum",
  "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]
 name = "neqo-udp"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
  "cfg_aliases",
  "libc",
- "log",
  "neqo-common",
  "quinn-udp",
+ "tracing",
  "windows",
 ]
 
@@ -6790,8 +6792,8 @@ checksum = "47091c86514c2e11452cb228dee77037334b99d92a23e4c69aa5982261f39247"
 dependencies = [
  "cfg_aliases",
  "libc",
- "log",
  "socket2",
+ "tracing",
  "windows-sys",
 ]
 
