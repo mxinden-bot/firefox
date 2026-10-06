@@ -2853,6 +2853,9 @@ name = "gecko_tracing"
 version = "0.1.0"
 dependencies = [
  "error-support",
+ "gecko-profiler",
+ "gecko_logger",
+ "log",
  "tracing",
  "tracing-subscriber",
  "tracing-support",
@@ -3562,7 +3565,6 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
- "log",
  "mozilla-central-workspace-hack",
  "neqo-bin",
  "neqo-common",
@@ -3572,6 +3574,7 @@ dependencies = [
  "nss-rs",
  "socket2",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -5456,7 +5459,7 @@ dependencies = [
 [[package]]
 name = "mtu"
 version = "0.4.1"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
  "cfg_aliases",
  "libc",
@@ -5539,7 +5542,7 @@ dependencies = [
 [[package]]
 name = "neqo-bin"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
  "cfg_aliases",
  "clap",
@@ -5548,7 +5551,6 @@ dependencies = [
  "hex",
  "http",
  "libc",
- "log",
  "neqo-common",
  "neqo-http3",
  "neqo-transport",
@@ -5562,12 +5564,13 @@ dependencies = [
  "test-fixture",
  "thiserror 2.0.12",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
 name = "neqo-common"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
  "enum-map",
  "env_logger",
@@ -5579,17 +5582,18 @@ dependencies = [
  "static_assertions",
  "strum",
  "thiserror 2.0.12",
+ "tracing",
+ "tracing-subscriber",
  "windows",
 ]
 
 [[package]]
 name = "neqo-http3"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
  "enumset",
  "http",
- "log",
  "neqo-common",
  "neqo-qpack",
  "neqo-transport",
@@ -5600,31 +5604,31 @@ dependencies = [
  "static_assertions",
  "strum",
  "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]
 name = "neqo-qpack"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
- "log",
  "neqo-common",
  "neqo-transport",
  "qlog",
  "rustc-hash 2.1.1",
  "static_assertions",
  "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]
 name = "neqo-transport"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
  "enum-map",
  "enumset",
  "indexmap",
- "log",
  "mtu",
  "neqo-common",
  "nss-rs",
@@ -5636,18 +5640,19 @@ dependencies = [
  "static_assertions",
  "strum",
  "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]
 name = "neqo-udp"
 version = "0.32.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.32.0#28cacc8ea2b035779ae504d837e3e25331264347"
+source = "git+https://github.com/mxinden-bot/neqo?rev=7b692c7a27147da9d8016716a3fd7a2a28b90fb0#7b692c7a27147da9d8016716a3fd7a2a28b90fb0"
 dependencies = [
  "cfg_aliases",
  "libc",
- "log",
  "neqo-common",
  "quinn-udp",
+ "tracing",
  "windows",
 ]
 
@@ -5657,7 +5662,6 @@ version = "0.1.0"
 dependencies = [
  "firefox-on-glean",
  "libc",
- "log",
  "neqo-common",
  "neqo-http3",
  "neqo-qpack",
@@ -5671,6 +5675,7 @@ dependencies = [
  "static_assertions",
  "static_prefs",
  "thin-vec",
+ "tracing",
  "uuid",
  "winapi",
  "xpcom",
@@ -6783,8 +6788,8 @@ checksum = "3ca72c3f2792761ab5fa848490694cbc728c7f659669ed4320c4c79c12150966"
 dependencies = [
  "cfg_aliases",
  "libc",
- "log",
  "socket2",
+ "tracing",
  "windows-sys",
 ]
 

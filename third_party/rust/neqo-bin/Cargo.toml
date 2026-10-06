@@ -57,7 +57,6 @@ bench = [
     "neqo-bin/bench",
     "neqo-http3/bench",
     "neqo-transport/bench",
-    "log/release_max_level_warn",
 ]
 blapi = ["neqo-transport/blapi"]
 default = ["blapi"]
@@ -123,10 +122,6 @@ default-features = false
 version = "0.2"
 default-features = false
 
-[dependencies.log]
-version = "0.4"
-default-features = false
-
 [dependencies.neqo-common]
 path = "./../neqo-common"
 
@@ -157,7 +152,7 @@ default-features = false
 [dependencies.quinn-udp]
 version = "0.6"
 features = [
-    "log",
+    "tracing",
     "fast-apple-datapath",
 ]
 default-features = false
@@ -189,6 +184,11 @@ features = [
     "macros",
     "rt",
 ]
+default-features = false
+
+[dependencies.tracing]
+version = "0.1.37"
+features = ["std"]
 default-features = false
 
 [dev-dependencies.criterion]
