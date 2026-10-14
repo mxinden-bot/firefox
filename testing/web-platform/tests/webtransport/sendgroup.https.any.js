@@ -253,3 +253,40 @@ promise_test(async t => {
   writable.sendOrder = 10;
   assert_equals(writable.sendOrder, 10, 'datagram writable sendOrder can be updated');
 }, 'WebTransportDatagramsWritable supports sendGroup and sendOrder');
+
+// Writes datagrams with `sendGroup` until the echo server returns one.
+async function assert_datagram_echoed(t, wt, sendGroup) {
+  const writer = wt.datagrams.createWritable({ sendGroup }).getWriter();
+  const reader = wt.datagrams.readable.getReader();
+  const encoder = new TextEncoder();
+  let echoed = false;
+  const read = reader.read().finally(() => {
+    echoed = true;
+  });
+  while (!echoed) {
+    await writer.write(encoder.encode('sendGroup datagram'));
+    await new Promise(resolve => t.step_timeout(resolve, 100));
+  }
+  const { value, done } = await read;
+  assert_false(done, 'datagram readable should not be done');
+  assert_equals(new TextDecoder().decode(value), 'sendGroup datagram');
+}
+
+promise_test(async t => {
+  const wt = new WebTransport(webtransport_url('echo.py'));
+  t.add_cleanup(() => wt.close());
+  const sendGroup = wt.createSendGroup();
+  await wt.ready;
+
+  await assert_datagram_echoed(t, wt, sendGroup);
+}, 'Datagrams written with a sendGroup created before ready are echoed');
+
+promise_test(async t => {
+  const wt = new WebTransport(webtransport_url('echo.py'));
+  t.add_cleanup(() => wt.close());
+  wt.createSendGroup();
+  await wt.ready;
+  const sendGroup = wt.createSendGroup();
+
+  await assert_datagram_echoed(t, wt, sendGroup);
+}, 'Datagrams written with a sendGroup are echoed when another sendGroup was created before ready');
