@@ -32,6 +32,41 @@ this.dns = class extends ExtensionAPI {
             0
           );
 
+          // Warm the HTTPS RR (HTTPSSVC) cache alongside the address lookup
+          // the extension requested. Consumers such as CNAME uncloaking only
+          // read A/AAAA, but resolving the addresses without also resolving
+          // the HTTPS record leaves the latter cold. A later connection then
+          // races a warm A/AAAA against a cold HTTPS RR and can miss HTTP/3
+          // (bug 1953459). The result is intentionally discarded. This query
+          // is deliberately not RESOLVE_SPECULATE: a speculative query is
+          // dropped when network.dns.disablePrefetch is set (e.g. by uBlock
+          // Origin's "disable pre-fetching", or a manual proxy), which is the
+          // very configuration this warming repairs.
+          if (
+            Services.prefs.getBoolPref(
+              "network.dns.upgrade_with_https_rr",
+              false
+            ) ||
+            Services.prefs.getBoolPref(
+              "network.dns.use_https_rr_as_altsvc",
+              false
+            )
+          ) {
+            try {
+              Services.dns.asyncResolve(
+                hostname,
+                Ci.nsIDNSService.RESOLVE_TYPE_HTTPSSVC,
+                dnsFlags,
+                null, // AdditionalInfo
+                { onLookupComplete() {} },
+                null,
+                {} /* defaultOriginAttributes */
+              );
+            } catch (e) {
+              // Best-effort cache warming; ignore failures (e.g. IP literals).
+            }
+          }
+
           return new Promise((resolve, reject) => {
             let request;
             let response = {
