@@ -39,6 +39,7 @@ gecko_tracing = { path = "../../../../xpcom/rust/gecko_tracing" }
 rsdparsa_capi = { path = "../../../../dom/media/webrtc/sdp/rsdparsa_capi" }
 # We have these to enforce common feature sets for said crates.
 log = {version = "0.4", features = ["release_max_level_info"]}
+tracing = { version = "0.1", features = ["release_max_level_debug"] }
 cose-c = { version = "0.1.5" }
 jsrust_shared = { path = "../../../../js/src/rust/shared" }
 jxl_decoder = { path = "../../../../image/rust/jxl", optional = true }
