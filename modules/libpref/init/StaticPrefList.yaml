@@ -16028,7 +16028,7 @@
 # address and by-type (HTTPS/TXT) negative entries.
 - name: network.dnsNegativeCacheExpirationGracePeriod
   type: RelaxedAtomicUint32
-  value: 60
+  value: 600
   mirror: always
 
 # Get TTL; not supported on all platforms; nop on the unsupported ones.
