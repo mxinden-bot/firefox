@@ -2643,7 +2643,7 @@ pub unsafe extern "C" fn neqo_http3conn_webtransport_close_session(
                     let transport_stats = conn.conn.transport_stats();
                     populate_transport_stats(&mut *stats, &transport_stats);
 
-                    (*stats).datagrams_expired_outgoing = session_stats.datagrams_expired_outgoing;
+                    (*stats).datagrams_expired_outgoing = session_stats.outgoing_datagrams.expired;
                 }
             }
             NS_OK
@@ -3013,7 +3013,7 @@ pub extern "C" fn neqo_http3conn_webtransport_session_stats(
             let transport_stats = conn.conn.transport_stats();
             populate_transport_stats(stats, &transport_stats);
 
-            stats.datagrams_expired_outgoing = session_stats.datagrams_expired_outgoing;
+            stats.datagrams_expired_outgoing = session_stats.outgoing_datagrams.expired;
 
             NS_OK
         }
