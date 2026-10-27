@@ -3382,7 +3382,6 @@ dependencies = [
  "firefox-on-glean",
  "gecko-profiler",
  "happy-eyeballs",
- "log",
  "nserror",
  "nsstring",
  "serde",
