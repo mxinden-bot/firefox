@@ -17611,6 +17611,15 @@
   mirror: always
   rust: true
 
+# Whether to wait for the preferred address family (e.g. AAAA when IPv6 is
+# preferred) before moving on to the connection phase. When false, connect as
+# soon as any address and the HTTPS record have arrived.
+- name: network.http.happy_eyeballs_wait_for_preferred_address
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+  rust: true
+
 # When Happy Eyeballs is enabled and all TRR-resolved addresses fail to
 # connect, retry the connection with TRR disabled (native DNS). This is the
 # connection-time equivalent of the legacy nsSocketTransport native-DNS

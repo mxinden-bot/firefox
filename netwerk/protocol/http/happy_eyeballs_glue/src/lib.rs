@@ -116,6 +116,9 @@ pub unsafe extern "C" fn happy_eyeballs_create(
         resolution_delay: Duration::from_millis(resolution_delay_ms as u64),
         connection_attempt_delay: Duration::from_millis(connection_attempt_delay_ms as u64),
         connection_attempt_delay_multiplier,
+        wait_for_preferred_address: static_prefs::pref!(
+            "network.http.happy_eyeballs_wait_for_preferred_address"
+        ),
         ..Default::default()
     };
 

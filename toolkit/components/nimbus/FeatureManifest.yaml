@@ -3517,6 +3517,12 @@ networkingConnections:
       setPref:
         branch: default
         pref: "network.http.happy_eyeballs_connection_attempt_delay"
+    happyEyeballsWaitForPreferredAddress:
+      description: Whether to wait for the preferred address family before starting connections
+      type: boolean
+      setPref:
+        branch: default
+        pref: "network.http.happy_eyeballs_wait_for_preferred_address"
 
 
 networkingSendOnDataFinished:

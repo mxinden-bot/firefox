@@ -749,6 +749,12 @@ features:
         gecko-pref:
           pref: "network.http.happy_eyeballs_connection_attempt_delay"
           branch: "default"
+      wait-for-preferred-address:
+        description: Whether to wait for the preferred address family before starting connections
+        type: Option<Boolean>
+        gecko-pref:
+          pref: "network.http.happy_eyeballs_wait_for_preferred_address"
+          branch: "default"
 
   tracking-protection-experimentation:
     description: "Experimental controls for tracking protection behavior"
