@@ -510,7 +510,7 @@ impl HappyEyeballs {
                     };
                 } else {
                     // Only the by-name resolution modes lack an address, and we
-                    // use the default `ResolutionMode::ByIp`.
+                    // use the default `ResolutionMode::Ip`.
                     debug_assert!(false, "connection attempt without an address");
                     *ret_event = Output::None;
                 }
