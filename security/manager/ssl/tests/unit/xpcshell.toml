@@ -192,6 +192,9 @@ skip-if = [
 ["test_data_storage.js"]
 prefs = ["security.storage.encryption.sqlite.enabled=false"]
 
+["test_data_storage_alternate_services.js"]
+prefs = ["security.storage.encryption.sqlite.enabled=false"]
+
 ["test_db_format_pref_new.js"]
 prefs = ["security.storage.encryption.sqlite.enabled=false"]
 run-if = [

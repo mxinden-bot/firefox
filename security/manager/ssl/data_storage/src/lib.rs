@@ -231,7 +231,6 @@ fn get_entries_with_minimum_score(entries: &[Entry]) -> Vec<&Entry> {
     min_score_entries
 }
 
-const MAX_SLOTS: usize = 2048;
 const KEY_LENGTH: usize = 256;
 
 /// Helper type to map between an entry key and the slot it is stored on.
@@ -259,6 +258,8 @@ struct DataStorageInner {
     name: String,
     /// The maximum permitted length of values.
     value_length: usize,
+    /// The maximum number of entries per data type.
+    max_slots: usize,
     /// A PathBuf holding the location of the profile directory, if available.
     maybe_profile_path: Option<PathBuf>,
     /// A serial event target to post tasks to, to write out changed persistent
@@ -271,6 +272,7 @@ impl DataStorageInner {
     fn new(
         name: String,
         value_length: usize,
+        max_slots: usize,
         maybe_profile_path: Option<PathBuf>,
     ) -> Result<Self, nsresult> {
         Ok(DataStorageInner {
@@ -282,6 +284,7 @@ impl DataStorageInner {
             temporary_slots: Vec::new(),
             name,
             value_length,
+            max_slots,
             maybe_profile_path,
             write_queue: Some(create_background_task_queue(cstr!("data_storage"))?),
         })
@@ -319,7 +322,7 @@ impl DataStorageInner {
         let mut backing_file = BufReader::new(f);
         let mut slots = Vec::new();
         // First read each entry into the persistent slots list.
-        while slots.len() < MAX_SLOTS {
+        while slots.len() < self.max_slots {
             if let Some(entry) = self.process_slot(&mut backing_file, slots.len())? {
                 slots.push(entry);
             } else {
@@ -422,7 +425,7 @@ impl DataStorageInner {
         for line in reader.lines().flatten().take(1024) {
             match Entry::from_old_line(&line, self.persistent_slots.len(), self.value_length) {
                 Ok(entry) => {
-                    if self.persistent_slots.len() >= MAX_SLOTS {
+                    if self.persistent_slots.len() >= self.max_slots {
                         warn!("too many lines in old DataStorage format");
                         break;
                     }
@@ -510,7 +513,7 @@ impl DataStorageInner {
         }
         // If `slots` isn't full, the next free slot index is one more than the
         // current last index.
-        if slots.len() < MAX_SLOTS {
+        if slots.len() < self.max_slots {
             return slots.len();
         }
         // If there isn't an unoccupied slot, evict the entry with the lowest score.
@@ -963,6 +966,7 @@ fn get_profile_path() -> Result<PathBuf, nsresult> {
 fn make_data_storage_internal(
     basename: &str,
     value_length: usize,
+    max_slots: usize,
     size_of_op: VoidPtrToSizeFn,
     enclosing_size_of_op: VoidPtrToSizeFn,
 ) -> Result<RefPtr<nsIDataStorage>, nsresult> {
@@ -972,6 +976,7 @@ fn make_data_storage_internal(
         data: Mutex::new(DataStorageInner::new(
             basename.to_string(),
             value_length,
+            max_slots,
             maybe_profile_path,
         )?),
         size_of_op,
@@ -1030,6 +1035,7 @@ fn make_data_storage_internal(
 pub unsafe extern "C" fn make_data_storage(
     basename: *const nsAString,
     value_length: usize,
+    max_slots: usize,
     size_of_op: VoidPtrToSizeFn,
     enclosing_size_of_op: VoidPtrToSizeFn,
     result: *mut *const xpcom::interfaces::nsIDataStorage,
@@ -1039,7 +1045,13 @@ pub unsafe extern "C" fn make_data_storage(
     }
     let basename = &*basename;
     let basename = basename.to_string();
-    match make_data_storage_internal(&basename, value_length, size_of_op, enclosing_size_of_op) {
+    match make_data_storage_internal(
+        &basename,
+        value_length,
+        max_slots,
+        size_of_op,
+        enclosing_size_of_op,
+    ) {
         Ok(val) => val.forget(&mut *result),
         Err(e) => return e,
     }

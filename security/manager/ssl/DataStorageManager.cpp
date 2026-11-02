@@ -11,7 +11,7 @@
 using VoidPtrToSizeFn = uintptr_t (*)(const void* ptr);
 
 extern "C" nsresult make_data_storage(const nsAString* basename,
-                                      size_t valueLength,
+                                      size_t valueLength, size_t maxSlots,
                                       VoidPtrToSizeFn sizeOfOp,
                                       VoidPtrToSizeFn enclosingSizeOfOp,
                                       nsIDataStorage** result);
@@ -31,6 +31,7 @@ DataStorageManager::Get(nsIDataStorageManager::DataStorage aDataStorage,
   }
   nsAutoString filename;
   size_t valueLength = 1024;
+  size_t maxSlots = 2048;
   switch (aDataStorage) {
     case nsIDataStorageManager::AlternateServices:
       if (mAlternateServicesCreated) {
@@ -38,6 +39,9 @@ DataStorageManager::Get(nsIDataStorageManager::DataStorage aDataStorage,
       }
       mAlternateServicesCreated = true;
       filename.Assign(u"AlternateServices"_ns);
+      // Network partitioning stores one mapping per origin and top-level
+      // site, so heavy users exceed 2048 entries.
+      maxSlots = 4096;
       break;
     case nsIDataStorageManager::ClientAuthRememberList:
       if (mClientAuthRememberListCreated) {
@@ -68,7 +72,8 @@ DataStorageManager::Get(nsIDataStorageManager::DataStorage aDataStorage,
     default:
       return NS_ERROR_INVALID_ARG;
   }
-  return make_data_storage(&filename, valueLength, &DataStorageMallocSizeOf,
+  return make_data_storage(&filename, valueLength, maxSlots,
+                           &DataStorageMallocSizeOf,
                            &DataStorageMallocEnclosingSizeOf, aResult);
 }
 
