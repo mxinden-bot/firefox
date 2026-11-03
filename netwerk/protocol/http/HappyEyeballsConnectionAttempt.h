@@ -173,6 +173,7 @@ class HappyEyeballsConnectionAttempt final : public ConnectionAttempt,
 
   // Pure classifier over status + current 0-RTT flags. No side effects.
   ConnResultOutcome ClassifyConnectionResult(nsresult aStatus) const;
+  void RestoreIPv6ScopeId(NetAddr& aAddr) const;
 
   // Release the real transaction: remove it from |aEntry|'s pending
   // queue (if not null), Close() it with the given reason, and drop
@@ -326,6 +327,8 @@ class HappyEyeballsConnectionAttempt final : public ConnectionAttempt,
   // Combined A+AAAA addresses resolved for mHost, used to build the entry's
   // coalescing keys once both lookups complete.
   nsTArray<NetAddr> mOriginAddresses;
+  // AAAA results with a nonzero scope id, which the engine drops.
+  nsTArray<NetAddr> mScopedIPv6Addresses;
 
   // When set, DNS resolution bypasses TRR and the cache. Set on the fallback
   // attempt started after TRR-resolved addresses failed to connect; also

@@ -294,6 +294,18 @@ static happy_eyeballs::IpAddr ToIpAddrV6(const NetAddr& aAddr) {
   return ip;
 }
 
+void HappyEyeballsConnectionAttempt::RestoreIPv6ScopeId(NetAddr& aAddr) const {
+  if (aAddr.raw.family != AF_INET6) {
+    return;
+  }
+  for (const auto& scoped : mScopedIPv6Addresses) {
+    if (!memcmp(&scoped.inet6.ip, &aAddr.inet6.ip, sizeof(aAddr.inet6.ip))) {
+      aAddr.inet6.scope_id = scoped.inet6.scope_id;
+      return;
+    }
+  }
+}
+
 HappyEyeballsConnectionAttempt::ConnResultOutcome
 HappyEyeballsConnectionAttempt::ClassifyConnectionResult(
     nsresult aStatus) const {
@@ -606,18 +618,20 @@ nsresult HappyEyeballsConnectionAttempt::ProcessHappyEyeballsOutput() {
           MOZ_ASSERT(false, "Failed to convert to NetAddr");
           return res.unwrapErr();
         }
+        NetAddr addr = res.unwrap();
+        RestoreIPv6ScopeId(addr);
 
-        LOG(("connect to:[%s] ech_config_len=%zu",
-             res.unwrap().ToString().get(), echConfig.Length()));
+        LOG(("connect to:[%s] ech_config_len=%zu", addr.ToString().get(),
+             echConfig.Length()));
         bool isEchRetry = event.attempt_connection.is_ech_retry;
 
         if (event.attempt_connection.http_version ==
             happy_eyeballs::ConnectionAttemptHttpVersions::H3) {
-          EstablishUDPConnection(res.unwrap(), event.attempt_connection.port,
+          EstablishUDPConnection(addr, event.attempt_connection.port,
                                  std::move(echConfig),
                                  event.attempt_connection.id, isEchRetry);
         } else {
-          EstablishTCPConnection(res.unwrap(), event.attempt_connection.port,
+          EstablishTCPConnection(addr, event.attempt_connection.port,
                                  std::move(echConfig),
                                  event.attempt_connection.id, isEchRetry);
         }
@@ -2097,6 +2111,9 @@ nsresult HappyEyeballsConnectionAttempt::OnAAAARecord(nsIDNSRecord* aRecord,
       LOG(("Addr=[%s]", addr.ToString().get()));
       ipv6Addresses.AppendElement(addr);
       ipv6IpAddrs.AppendElement(ToIpAddrV6(addr));
+      if (addr.inet6.scope_id) {
+        mScopedIPv6Addresses.AppendElement(addr);
+      }
     }
   }
 

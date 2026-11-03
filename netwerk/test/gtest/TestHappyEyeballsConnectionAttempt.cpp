@@ -9,6 +9,8 @@
 // real Rust engine stays live, driven via its FFI inputs; an IP-literal origin
 // avoids DNS.
 
+#include <memory>
+
 #include "ConnectionEntry.h"
 #include "ConnectionEstablisher.h"
 #include "HappyEyeballsConnMgrDelegate.h"
@@ -27,12 +29,14 @@
 #include "nsHttpRequestHead.h"
 #include "nsHttpTransaction.h"
 #include "nsIHttpProtocolHandler.h"
+#include "nsINativeDNSResolverOverride.h"
 #include "nsISeekableStream.h"
 #include "nsISocketTransportService.h"
 #include "nsNetAddr.h"
 #include "nsServiceManagerUtils.h"
 #include "nsSocketTransportService2.h"
 #include "nsThreadUtils.h"
+#include "prthread.h"
 
 namespace mozilla {
 namespace net {
@@ -909,6 +913,54 @@ TEST(HappyEyeballsConnectionAttempt, ZeroRttLateLoserFinish0RTTAfterRealTxnGone)
     realTrans->SetConnection(nullptr);
   });
   Preferences::ClearUser("network.http.0rtt_force_txn_gone_for_testing");
+}
+
+// A link-local address is only usable with its scope id. The engine sees just
+// the 16 address bytes, so the scope id from the AAAA result has to survive
+// into the address handed to the establisher.
+TEST(HappyEyeballsConnectionAttempt, LinkLocalKeepsScopeId)
+{
+  EnsureHttpHandler();
+  nsCOMPtr<nsINativeDNSResolverOverride> override =
+      do_GetService("@mozilla.org/network/native-dns-override;1");
+  ASSERT_TRUE(override);
+  constexpr auto kHost = "link-local-scope.example"_ns;
+  constexpr auto kAddr = "fe80::1%2"_ns;
+  NetAddr expected;
+  if (NS_FAILED(expected.InitFromString(kAddr))) {
+    // NSPR only parses a scope id when the host supports IPv6.
+    GTEST_SKIP() << "cannot parse " << kAddr.get();
+  }
+  ASSERT_NE(expected.inet6.scope_id, 0u);
+  ASSERT_TRUE(NS_SUCCEEDED(override->AddIPOverride(kHost, kAddr)));
+
+  // The DNS answers reach the socket thread through its own event loop, so
+  // poll from the main thread instead of spinning on the socket thread.
+  std::unique_ptr<TestHarness> h;
+  RunOnSocketThread([&]() {
+    h = std::make_unique<TestHarness>(NS_HTTP_DISALLOW_HTTPS_RR,
+                                      /*realTransaction*/ false, kHost);
+    h->Init();
+  });
+  bool done = false;
+  for (int i = 0; i < 100 && !done; ++i) {
+    RunOnSocketThread(
+        [&]() { done = !h->mFactory->mTCP.IsEmpty() || h->mHE->IsTerminal(); });
+    if (!done) {
+      PR_Sleep(PR_MillisecondsToInterval(50));
+    }
+  }
+
+  RunOnSocketThread([&]() {
+    ASSERT_FALSE(h->mFactory->mTCP.IsEmpty());
+    const NetAddr& addr = h->mFactory->mTCP[0]->Addr();
+    EXPECT_EQ(addr.raw.family, AF_INET6);
+    EXPECT_EQ(addr.inet6.scope_id, expected.inet6.scope_id);
+    h->mHE->Abandon();
+    h = nullptr;
+  });
+
+  override->ClearOverrides();
 }
 
 }  // namespace net
