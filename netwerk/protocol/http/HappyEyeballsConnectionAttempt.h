@@ -196,7 +196,7 @@ class HappyEyeballsConnectionAttempt final : public ConnectionAttempt,
   Maybe<nsCString> MaybeExtractRetryEchConfig(
       ConnectionEstablisher* aEstablisher, nsresult aStatus);
 
-  nsresult ProcessHappyEyeballsOutput(uint32_t aAllowedEarlyFiringUs = 0);
+  nsresult ProcessHappyEyeballsOutput();
 
   // Report the domain lookup span: domainLookupStart is the first DNS query
   // (any type), domainLookupEnd is the start of the first connection attempt.

@@ -281,7 +281,6 @@ pub unsafe extern "C" fn happy_eyeballs_process_output(
     ret_event: *mut Output,
     ech_config: *mut ThinVec<u8>,
     dns_hostname: *mut nsACString,
-    allowed_early_firing_us: u64,
 ) -> nsresult {
     let Some(he) = (unsafe { he.as_mut() }) else {
         debug_assert!(false, "unexpected null he pointer");
@@ -303,12 +302,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_output(
         return NS_ERROR_INVALID_ARG;
     };
 
-    he.process_output(
-        ret_event,
-        ech_config,
-        dns_hostname,
-        Duration::from_micros(allowed_early_firing_us),
-    )
+    he.process_output(ret_event, ech_config, dns_hostname)
 }
 
 #[repr(C)]
@@ -494,13 +488,8 @@ impl HappyEyeballs {
         ret_event: &mut Output,
         ech_config: &mut ThinVec<u8>,
         dns_hostname: &mut nsACString,
-        allowed_early_firing: Duration,
     ) -> nsresult {
-        // A timer may fire up to `allowed_early_firing` before its deadline.
-        // Treat such a deadline as expired instead of arming another timer.
-        let out = self
-            .inner
-            .process_output(Instant::now() + allowed_early_firing);
+        let out = self.inner.process_output(std::time::Instant::now());
         ech_config.clear();
         dns_hostname.truncate();
         match out {

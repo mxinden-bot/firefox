@@ -611,8 +611,7 @@ void HappyEyeballsConnectionAttempt::FillConnectTimings(
   }
 }
 
-nsresult HappyEyeballsConnectionAttempt::ProcessHappyEyeballsOutput(
-    uint32_t aAllowedEarlyFiringUs) {
+nsresult HappyEyeballsConnectionAttempt::ProcessHappyEyeballsOutput() {
   LOG(("HappyEyeballsConnectionAttempt::ProcessHappyEyeballsOutput %p", this));
 
   if (IsTerminal()) {
@@ -635,7 +634,7 @@ nsresult HappyEyeballsConnectionAttempt::ProcessHappyEyeballsOutput(
     nsTArray<uint8_t> echConfig;
     nsCString dnsHostname;
     rv = happy_eyeballs_process_output(mHappyEyeballs, &event, &echConfig,
-                                       &dnsHostname, aAllowedEarlyFiringUs);
+                                       &dnsHostname);
     if (NS_FAILED(rv)) {
       LOG(("process_output failed rv=%x", static_cast<uint32_t>(rv)));
       return rv;
@@ -2530,9 +2529,7 @@ nsresult HappyEyeballsConnectionAttempt::OnHTTPSRecord(nsIDNSRecord* aRecord,
 
 NS_IMETHODIMP  // method for nsITimerCallback
 HappyEyeballsConnectionAttempt::Notify(nsITimer* timer) {
-  uint32_t allowedEarlyFiringUs = 0;
-  (void)timer->GetAllowedEarlyFiringMicroseconds(&allowedEarlyFiringUs);
-  return ProcessHappyEyeballsOutput(allowedEarlyFiringUs);
+  return ProcessHappyEyeballsOutput();
 }
 
 NS_IMETHODIMP  // method for nsINamed
