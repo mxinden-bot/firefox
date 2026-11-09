@@ -129,8 +129,8 @@ pub unsafe extern "C" fn happy_eyeballs_create(
 
     let profiler = profiler::Profiler::new(0u64.into(), &origin_str, &network_config);
 
-    // Allocated first, so that its address, the log id of this race, can be
-    // logged before the happy-eyeballs crate logs the race's creation.
+    // Allocated first, so that its address, the log id of this state machine,
+    // can be logged before the happy-eyeballs crate logs its creation.
     let uninit = Box::<HappyEyeballs>::new_uninit();
     tracing::debug!(target: "happy_eyeballs", "id={:p} create", uninit.as_ptr());
 
