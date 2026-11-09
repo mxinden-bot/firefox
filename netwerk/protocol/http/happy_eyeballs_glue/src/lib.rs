@@ -9,7 +9,6 @@ mod profiler;
 
 use nserror::{nsresult, NS_ERROR_INVALID_ARG, NS_ERROR_UNEXPECTED, NS_OK};
 use nsstring::{nsACString, nsCString};
-use std::cell::Cell;
 use std::ffi::c_void;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::num::NonZeroU32;
@@ -17,27 +16,6 @@ use std::ptr;
 use std::time::{Duration, Instant};
 use thin_vec::ThinVec;
 use xpcom::{AtomicRefcnt, RefCounted};
-
-thread_local! {
-    static LOGGED_OWNER: Cell<usize> = const { Cell::new(0) };
-}
-
-/// Logs `owner`, the address of the C++ object driving a race, whenever the
-/// happy-eyeballs crate is about to log for a different race than the one it
-/// last logged for on this thread. Every crate log line is thus preceded by the
-/// owner of the race it belongs to.
-fn log_owner(owner: usize, force: bool) {
-    if !tracing::enabled!(
-        kind: tracing::metadata::Kind::EVENT,
-        target: "happy_eyeballs",
-        tracing::Level::DEBUG
-    ) {
-        return;
-    }
-    if LOGGED_OWNER.replace(owner) != owner || force {
-        tracing::debug!(target: "happy_eyeballs", "owner={owner:#x}");
-    }
-}
 
 #[repr(C)]
 pub enum IpPreference {
@@ -154,8 +132,7 @@ pub unsafe extern "C" fn happy_eyeballs_create(
     let profiler = profiler::Profiler::new(0u64.into(), &origin_str, &network_config);
 
     let owner = owner as usize;
-    // Forced, as a new race may reuse the address of the previous one.
-    log_owner(owner, true);
+    tracing::debug!(target: "happy_eyeballs", "owner={owner:#x} create");
 
     let raw_ptr = match happy_eyeballs::HappyEyeballs::new_with_network_config(
         origin_str.as_str(),
@@ -195,7 +172,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_a(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    log_owner(he.owner, false);
+    tracing::debug!(target: "happy_eyeballs", "owner={:#x} process_dns_response_a", he.owner);
 
     let Some(addrs) = (unsafe { addrs.as_ref() }) else {
         debug_assert!(false, "unexpected null addrs pointer");
@@ -217,7 +194,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_aaaa(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    log_owner(he.owner, false);
+    tracing::debug!(target: "happy_eyeballs", "owner={:#x} process_dns_response_aaaa", he.owner);
 
     let Some(addrs) = (unsafe { addrs.as_ref() }) else {
         debug_assert!(false, "unexpected null addrs pointer");
@@ -239,7 +216,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_https(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    log_owner(he.owner, false);
+    tracing::debug!(target: "happy_eyeballs", "owner={:#x} process_dns_response_https", he.owner);
 
     let Some(service_infos) = (unsafe { service_infos.as_ref() }) else {
         debug_assert!(false, "unexpected null service_infos pointer");
@@ -259,7 +236,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_connection_result(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    log_owner(he.owner, false);
+    tracing::debug!(target: "happy_eyeballs", "owner={:#x} process_connection_result", he.owner);
 
     he.process_connection_result(id, status)
 }
@@ -274,7 +251,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_ech_retry(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    log_owner(he.owner, false);
+    tracing::debug!(target: "happy_eyeballs", "owner={:#x} process_ech_retry", he.owner);
 
     let Some(ech_config) = (unsafe { ech_config.as_ref() }) else {
         debug_assert!(false, "unexpected null ech_config pointer");
@@ -295,7 +272,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_output(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    log_owner(he.owner, false);
+    tracing::debug!(target: "happy_eyeballs", "owner={:#x} process_output", he.owner);
 
     let Some(ret_event) = (unsafe { ret_event.as_mut() }) else {
         debug_assert!(false, "unexpected null ret_event pointer");
