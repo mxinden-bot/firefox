@@ -196,7 +196,7 @@ class HappyEyeballsConnectionAttempt final : public ConnectionAttempt,
   Maybe<nsCString> MaybeExtractRetryEchConfig(
       ConnectionEstablisher* aEstablisher, nsresult aStatus);
 
-  nsresult ProcessHappyEyeballsOutput();
+  nsresult ProcessHappyEyeballsOutput(uint32_t aAllowedEarlyFiringUs = 0);
 
   // Report the domain lookup span: domainLookupStart is the first DNS query
   // (any type), domainLookupEnd is the start of the first connection attempt.
@@ -302,7 +302,7 @@ class HappyEyeballsConnectionAttempt final : public ConnectionAttempt,
   nsresult CheckLNAForAddr(const NetAddr& aAddr);
 
   // Timer
-  void SetupTimer(uint64_t aTimeout);
+  void SetupTimer(uint64_t aTimeoutUs);
 
   // Entry actions for the terminal states; each ends by Transitioning to Done.
   void EnterSucceeded();

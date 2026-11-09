@@ -71,7 +71,7 @@ TEST(HappyEyeballsNetAddrArray, MultiAddressARecordIsNotCollapsed)
     nsTArray<uint8_t> echConfig;
     nsCString hostname;
     ASSERT_EQ(happy_eyeballs::happy_eyeballs_process_output(
-                  he.get(), &event, &echConfig, &hostname),
+                  he.get(), &event, &echConfig, &hostname, 0),
               NS_OK);
 
     switch (event.tag) {
