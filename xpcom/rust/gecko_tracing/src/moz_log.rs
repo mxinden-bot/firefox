@@ -6,13 +6,8 @@
 //! stderr or MOZ_LOG_FILE, plus a LOGS profiler marker, as a C++ `MOZ_LOG`
 //! call produces.
 
-use std::fmt::Write;
-
-use tracing::{span, subscriber::Interest, Event, Level, Metadata, Subscriber};
-use tracing_subscriber::{
-    layer::{Context, Filter, Layer},
-    registry::LookupSpan,
-};
+use tracing::{subscriber::Interest, Event, Level, Metadata, Subscriber};
+use tracing_subscriber::layer::{Context, Filter, Layer};
 
 use crate::fields::FieldFormatter;
 
@@ -32,13 +27,12 @@ pub(crate) fn moz_log_test(meta: &Metadata<'_>) -> bool {
     gecko_logger::moz_log_test(meta.target(), to_log_level(*meta.level()))
 }
 
-/// Filters events and spans by the MOZ_LOG level of their target. Spans are
-/// let through so that their fields can prefix the events logged inside them.
+/// Filters events by the MOZ_LOG level of their target.
 pub struct MozLogFilter;
 
 impl MozLogFilter {
     fn is_enabled(meta: &Metadata<'_>) -> bool {
-        moz_log_test(meta)
+        meta.is_event() && moz_log_test(meta)
     }
 }
 
@@ -58,50 +52,13 @@ impl<S> Filter<S> for MozLogFilter {
     }
 }
 
-/// A span's formatted fields, stored in its extensions while it is open.
-struct SpanFields(String);
-
-/// Forwards Rust tracing events to Gecko logging, prefixed with the enclosing
-/// spans as `name{fields}: `.
+/// Forwards Rust tracing events to Gecko logging.
 pub struct MozLogLayer;
 
-impl<S> Layer<S> for MozLogLayer
-where
-    S: Subscriber + for<'a> LookupSpan<'a>,
-{
-    fn on_new_span(&self, attrs: &span::Attributes<'_>, id: &span::Id, ctx: Context<'_, S>) {
-        let Some(span) = ctx.span(id) else {
-            return;
-        };
-        let mut fields = String::new();
-        attrs.record(&mut FieldFormatter { out: &mut fields });
-        span.extensions_mut().insert(SpanFields(fields));
-    }
-
-    fn on_record(&self, id: &span::Id, values: &span::Record<'_>, ctx: Context<'_, S>) {
-        let Some(span) = ctx.span(id) else {
-            return;
-        };
-        let mut extensions = span.extensions_mut();
-        if let Some(fields) = extensions.get_mut::<SpanFields>() {
-            values.record(&mut FieldFormatter { out: &mut fields.0 });
-        }
-    }
-
-    fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+impl<S: Subscriber> Layer<S> for MozLogLayer {
+    fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
         let metadata = event.metadata();
         gecko_logger::moz_log(metadata.target(), to_log_level(*metadata.level()), |out| {
-            if let Some(scope) = ctx.event_scope(event) {
-                for span in scope.from_root() {
-                    out.push_str(span.name());
-                    if let Some(SpanFields(fields)) = span.extensions().get::<SpanFields>() {
-                        if !fields.is_empty() {
-                            let _ = write!(out, "{{{fields}}}");
-                        }
-                    }
-                    out.push_str(": ");
-                }
-            }
             event.record(&mut FieldFormatter { out })
         });
     }

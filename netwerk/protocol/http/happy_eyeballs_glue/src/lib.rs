@@ -9,12 +9,35 @@ mod profiler;
 
 use nserror::{nsresult, NS_ERROR_INVALID_ARG, NS_ERROR_UNEXPECTED, NS_OK};
 use nsstring::{nsACString, nsCString};
+use std::cell::Cell;
+use std::ffi::c_void;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::num::NonZeroU32;
 use std::ptr;
 use std::time::{Duration, Instant};
 use thin_vec::ThinVec;
 use xpcom::{AtomicRefcnt, RefCounted};
+
+thread_local! {
+    static LOGGED_OWNER: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Logs `owner`, the address of the C++ object driving a race, whenever the
+/// happy-eyeballs crate is about to log for a different race than the one it
+/// last logged for on this thread. Every crate log line is thus preceded by the
+/// owner of the race it belongs to.
+fn log_owner(owner: usize, force: bool) {
+    if !tracing::enabled!(
+        kind: tracing::metadata::Kind::EVENT,
+        target: "happy_eyeballs",
+        tracing::Level::DEBUG
+    ) {
+        return;
+    }
+    if LOGGED_OWNER.replace(owner) != owner || force {
+        tracing::debug!(target: "happy_eyeballs", "owner={owner:#x}");
+    }
+}
 
 #[repr(C)]
 pub enum IpPreference {
@@ -64,7 +87,7 @@ pub unsafe extern "C" fn happy_eyeballs_create(
     alt_svc: *const ThinVec<AltSvc>,
     ip_preference: IpPreference,
     http_versions: HttpVersions,
-    log_id: *const nsACString,
+    owner: *const c_void,
 ) -> nsresult {
     *result = ptr::null_mut();
 
@@ -75,11 +98,6 @@ pub unsafe extern "C" fn happy_eyeballs_create(
 
     let Some(alt_svc) = (unsafe { alt_svc.as_ref() }) else {
         debug_assert!(false, "unexpected null alt_svc pointer");
-        return NS_ERROR_INVALID_ARG;
-    };
-
-    let Some(log_id) = (unsafe { log_id.as_ref() }) else {
-        debug_assert!(false, "unexpected null log_id pointer");
         return NS_ERROR_INVALID_ARG;
     };
 
@@ -135,22 +153,20 @@ pub unsafe extern "C" fn happy_eyeballs_create(
 
     let profiler = profiler::Profiler::new(0u64.into(), &origin_str, &network_config);
 
-    // Prefixes the MOZ_LOG lines of the happy-eyeballs crate with the
-    // caller-provided id, so that concurrent races can be told apart.
-    let span = tracing::debug_span!(target: "happy_eyeballs", "he", this = %log_id);
+    let owner = owner as usize;
+    // Forced, as a new race may reuse the address of the previous one.
+    log_owner(owner, true);
 
-    let raw_ptr = match span.in_scope(|| {
-        happy_eyeballs::HappyEyeballs::new_with_network_config(
-            origin_str.as_str(),
-            port,
-            network_config,
-        )
-    }) {
+    let raw_ptr = match happy_eyeballs::HappyEyeballs::new_with_network_config(
+        origin_str.as_str(),
+        port,
+        network_config,
+    ) {
         Ok(he) => {
             let mut boxed = Box::new(HappyEyeballs {
                 refcnt: unsafe { AtomicRefcnt::new() },
                 inner: he,
-                span,
+                owner,
                 profiler,
                 metrics,
             });
@@ -179,7 +195,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_a(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    let _span = he.span.clone().entered();
+    log_owner(he.owner, false);
 
     let Some(addrs) = (unsafe { addrs.as_ref() }) else {
         debug_assert!(false, "unexpected null addrs pointer");
@@ -201,7 +217,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_aaaa(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    let _span = he.span.clone().entered();
+    log_owner(he.owner, false);
 
     let Some(addrs) = (unsafe { addrs.as_ref() }) else {
         debug_assert!(false, "unexpected null addrs pointer");
@@ -223,7 +239,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_https(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    let _span = he.span.clone().entered();
+    log_owner(he.owner, false);
 
     let Some(service_infos) = (unsafe { service_infos.as_ref() }) else {
         debug_assert!(false, "unexpected null service_infos pointer");
@@ -243,7 +259,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_connection_result(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    let _span = he.span.clone().entered();
+    log_owner(he.owner, false);
 
     he.process_connection_result(id, status)
 }
@@ -258,7 +274,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_ech_retry(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    let _span = he.span.clone().entered();
+    log_owner(he.owner, false);
 
     let Some(ech_config) = (unsafe { ech_config.as_ref() }) else {
         debug_assert!(false, "unexpected null ech_config pointer");
@@ -279,7 +295,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_output(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    let _span = he.span.clone().entered();
+    log_owner(he.owner, false);
 
     let Some(ret_event) = (unsafe { ret_event.as_mut() }) else {
         debug_assert!(false, "unexpected null ret_event pointer");
@@ -303,7 +319,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_output(
 pub struct HappyEyeballs {
     refcnt: AtomicRefcnt,
     inner: happy_eyeballs::HappyEyeballs,
-    span: tracing::Span,
+    owner: usize,
     profiler: profiler::Profiler,
     metrics: metrics::Metrics,
 }

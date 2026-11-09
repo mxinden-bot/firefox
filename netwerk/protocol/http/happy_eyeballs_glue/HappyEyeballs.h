@@ -24,7 +24,7 @@ class HappyEyeballs final {
                        const nsTArray<happy_eyeballs::AltSvc>* aAltSvc,
                        happy_eyeballs::IpPreference aPref,
                        happy_eyeballs::HttpVersions aHttpVersions,
-                       const nsACString& aLogId);
+                       const void* aOwner);
 
   void AddRef() { happy_eyeballs::happy_eyeballs_addref(this); }
   void Release() { happy_eyeballs::happy_eyeballs_release(this); }

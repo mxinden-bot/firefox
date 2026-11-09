@@ -13,10 +13,10 @@ nsresult HappyEyeballs::Init(HappyEyeballs** aHappyEyeballs,
                              const nsTArray<happy_eyeballs::AltSvc>* aAltSvc,
                              happy_eyeballs::IpPreference aPref,
                              happy_eyeballs::HttpVersions aHttpVersions,
-                             const nsACString& aLogId) {
+                             const void* aOwner) {
   return happy_eyeballs::happy_eyeballs_create(
       (const HappyEyeballs**)aHappyEyeballs, &aOrigin, aPort, aAltSvc, aPref,
-      aHttpVersions, &aLogId);
+      aHttpVersions, aOwner);
 }
 
 }  // namespace net

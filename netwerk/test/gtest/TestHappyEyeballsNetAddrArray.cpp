@@ -46,7 +46,6 @@ TEST(HappyEyeballsNetAddrArray, MultiAddressARecordIsNotCollapsed)
   // Ipv4Only asks for no AAAA, so nothing waits on the resolution delay, and
   // H3 off keeps this to one attempt per address.
   nsAutoCString origin("example.com");
-  nsAutoCString logId("test");
   nsTArray<happy_eyeballs::AltSvc> altSvc;
   happy_eyeballs::HttpVersions versions{/* h1 */ true, /* h2 */ true,
                                         /* h3 */ false};
@@ -56,7 +55,7 @@ TEST(HappyEyeballsNetAddrArray, MultiAddressARecordIsNotCollapsed)
   HappyEyeballs* raw = nullptr;
   ASSERT_EQ(happy_eyeballs::happy_eyeballs_create(
                 (const HappyEyeballs**)&raw, &origin, 443, &altSvc,
-                happy_eyeballs::IpPreference::Ipv4Only, versions, &logId),
+                happy_eyeballs::IpPreference::Ipv4Only, versions, nullptr),
             NS_OK);
   ASSERT_NE(raw, nullptr);
   // create() hands back an addrefed pointer, and the ASSERTs below return
