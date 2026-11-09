@@ -237,7 +237,7 @@ nsresult HappyEyeballsConnectionAttempt::CreateHappyEyeballs(
   }
 
   return HappyEyeballs::Init(getter_AddRefs(mHappyEyeballs), mHost, originPort,
-                             &altSvcArray, ipPref, httpVersions, this);
+                             &altSvcArray, ipPref, httpVersions);
 }
 
 nsresult HappyEyeballsConnectionAttempt::Init(ConnectionEntry* ent) {

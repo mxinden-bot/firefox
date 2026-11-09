@@ -9,7 +9,6 @@ mod profiler;
 
 use nserror::{nsresult, NS_ERROR_INVALID_ARG, NS_ERROR_UNEXPECTED, NS_OK};
 use nsstring::{nsACString, nsCString};
-use std::ffi::c_void;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::num::NonZeroU32;
 use std::ptr;
@@ -65,7 +64,6 @@ pub unsafe extern "C" fn happy_eyeballs_create(
     alt_svc: *const ThinVec<AltSvc>,
     ip_preference: IpPreference,
     http_versions: HttpVersions,
-    owner: *const c_void,
 ) -> nsresult {
     *result = ptr::null_mut();
 
@@ -131,9 +129,6 @@ pub unsafe extern "C" fn happy_eyeballs_create(
 
     let profiler = profiler::Profiler::new(0u64.into(), &origin_str, &network_config);
 
-    let owner = owner as usize;
-    tracing::debug!(target: "happy_eyeballs", "owner={owner:#x} create");
-
     let raw_ptr = match happy_eyeballs::HappyEyeballs::new_with_network_config(
         origin_str.as_str(),
         port,
@@ -143,14 +138,15 @@ pub unsafe extern "C" fn happy_eyeballs_create(
             let mut boxed = Box::new(HappyEyeballs {
                 refcnt: unsafe { AtomicRefcnt::new() },
                 inner: he,
-                owner,
                 profiler,
                 metrics,
             });
             boxed
                 .profiler
                 .set_flow_id(std::ptr::from_ref(&boxed.refcnt).into());
-            Box::into_raw(boxed)
+            let raw_ptr = Box::into_raw(boxed);
+            tracing::debug!(target: "happy_eyeballs", "id={raw_ptr:p} create");
+            raw_ptr
         }
         Err(_) => return NS_ERROR_UNEXPECTED,
     };
@@ -172,7 +168,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_a(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    tracing::debug!(target: "happy_eyeballs", "owner={:#x} process_dns_response_a", he.owner);
+    tracing::debug!(target: "happy_eyeballs", "id={he:p} process_dns_response_a");
 
     let Some(addrs) = (unsafe { addrs.as_ref() }) else {
         debug_assert!(false, "unexpected null addrs pointer");
@@ -194,7 +190,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_aaaa(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    tracing::debug!(target: "happy_eyeballs", "owner={:#x} process_dns_response_aaaa", he.owner);
+    tracing::debug!(target: "happy_eyeballs", "id={he:p} process_dns_response_aaaa");
 
     let Some(addrs) = (unsafe { addrs.as_ref() }) else {
         debug_assert!(false, "unexpected null addrs pointer");
@@ -216,7 +212,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_https(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    tracing::debug!(target: "happy_eyeballs", "owner={:#x} process_dns_response_https", he.owner);
+    tracing::debug!(target: "happy_eyeballs", "id={he:p} process_dns_response_https");
 
     let Some(service_infos) = (unsafe { service_infos.as_ref() }) else {
         debug_assert!(false, "unexpected null service_infos pointer");
@@ -236,7 +232,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_connection_result(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    tracing::debug!(target: "happy_eyeballs", "owner={:#x} process_connection_result", he.owner);
+    tracing::debug!(target: "happy_eyeballs", "id={he:p} process_connection_result");
 
     he.process_connection_result(id, status)
 }
@@ -251,7 +247,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_ech_retry(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    tracing::debug!(target: "happy_eyeballs", "owner={:#x} process_ech_retry", he.owner);
+    tracing::debug!(target: "happy_eyeballs", "id={he:p} process_ech_retry");
 
     let Some(ech_config) = (unsafe { ech_config.as_ref() }) else {
         debug_assert!(false, "unexpected null ech_config pointer");
@@ -272,7 +268,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_output(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
-    tracing::debug!(target: "happy_eyeballs", "owner={:#x} process_output", he.owner);
+    tracing::debug!(target: "happy_eyeballs", "id={he:p} process_output");
 
     let Some(ret_event) = (unsafe { ret_event.as_mut() }) else {
         debug_assert!(false, "unexpected null ret_event pointer");
@@ -296,7 +292,6 @@ pub unsafe extern "C" fn happy_eyeballs_process_output(
 pub struct HappyEyeballs {
     refcnt: AtomicRefcnt,
     inner: happy_eyeballs::HappyEyeballs,
-    owner: usize,
     profiler: profiler::Profiler,
     metrics: metrics::Metrics,
 }
