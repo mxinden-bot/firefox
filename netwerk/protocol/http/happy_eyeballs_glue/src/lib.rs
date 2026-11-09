@@ -129,24 +129,30 @@ pub unsafe extern "C" fn happy_eyeballs_create(
 
     let profiler = profiler::Profiler::new(0u64.into(), &origin_str, &network_config);
 
+    // Allocated first, so that its address, the log id of this race, can be
+    // logged before the happy-eyeballs crate logs the race's creation.
+    let uninit = Box::<HappyEyeballs>::new_uninit();
+    tracing::debug!(target: "happy_eyeballs", "id={:p} create", uninit.as_ptr());
+
     let raw_ptr = match happy_eyeballs::HappyEyeballs::new_with_network_config(
         origin_str.as_str(),
         port,
         network_config,
     ) {
         Ok(he) => {
-            let mut boxed = Box::new(HappyEyeballs {
-                refcnt: unsafe { AtomicRefcnt::new() },
-                inner: he,
-                profiler,
-                metrics,
-            });
+            let mut boxed = Box::write(
+                uninit,
+                HappyEyeballs {
+                    refcnt: unsafe { AtomicRefcnt::new() },
+                    inner: he,
+                    profiler,
+                    metrics,
+                },
+            );
             boxed
                 .profiler
                 .set_flow_id(std::ptr::from_ref(&boxed.refcnt).into());
-            let raw_ptr = Box::into_raw(boxed);
-            tracing::debug!(target: "happy_eyeballs", "id={raw_ptr:p} create");
-            raw_ptr
+            Box::into_raw(boxed)
         }
         Err(_) => return NS_ERROR_UNEXPECTED,
     };
