@@ -21,6 +21,7 @@
 #include "nsHttpTransaction.h"
 #include "nsIDNSAdditionalInfo.h"
 #include "nsIHttpActivityObserver.h"
+#include "nsPrintfCString.h"
 #include "nsQueryObject.h"
 #include "nsSocketTransport2.h"
 #include "nsSocketTransportService2.h"
@@ -237,7 +238,8 @@ nsresult HappyEyeballsConnectionAttempt::CreateHappyEyeballs(
   }
 
   return HappyEyeballs::Init(getter_AddRefs(mHappyEyeballs), mHost, originPort,
-                             &altSvcArray, ipPref, httpVersions);
+                             &altSvcArray, ipPref, httpVersions,
+                             nsPrintfCString("%p", this));
 }
 
 nsresult HappyEyeballsConnectionAttempt::Init(ConnectionEntry* ent) {

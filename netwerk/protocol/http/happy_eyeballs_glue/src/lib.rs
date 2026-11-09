@@ -64,6 +64,7 @@ pub unsafe extern "C" fn happy_eyeballs_create(
     alt_svc: *const ThinVec<AltSvc>,
     ip_preference: IpPreference,
     http_versions: HttpVersions,
+    log_id: *const nsACString,
 ) -> nsresult {
     *result = ptr::null_mut();
 
@@ -74,6 +75,11 @@ pub unsafe extern "C" fn happy_eyeballs_create(
 
     let Some(alt_svc) = (unsafe { alt_svc.as_ref() }) else {
         debug_assert!(false, "unexpected null alt_svc pointer");
+        return NS_ERROR_INVALID_ARG;
+    };
+
+    let Some(log_id) = (unsafe { log_id.as_ref() }) else {
+        debug_assert!(false, "unexpected null log_id pointer");
         return NS_ERROR_INVALID_ARG;
     };
 
@@ -129,15 +135,22 @@ pub unsafe extern "C" fn happy_eyeballs_create(
 
     let profiler = profiler::Profiler::new(0u64.into(), &origin_str, &network_config);
 
-    let raw_ptr = match happy_eyeballs::HappyEyeballs::new_with_network_config(
-        origin_str.as_str(),
-        port,
-        network_config,
-    ) {
+    // Prefixes the MOZ_LOG lines of the happy-eyeballs crate with the
+    // caller-provided id, so that concurrent races can be told apart.
+    let span = tracing::debug_span!(target: "happy_eyeballs", "he", this = %log_id);
+
+    let raw_ptr = match span.in_scope(|| {
+        happy_eyeballs::HappyEyeballs::new_with_network_config(
+            origin_str.as_str(),
+            port,
+            network_config,
+        )
+    }) {
         Ok(he) => {
             let mut boxed = Box::new(HappyEyeballs {
                 refcnt: unsafe { AtomicRefcnt::new() },
                 inner: he,
+                span,
                 profiler,
                 metrics,
             });
@@ -166,6 +179,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_a(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
+    let _span = he.span.clone().entered();
 
     let Some(addrs) = (unsafe { addrs.as_ref() }) else {
         debug_assert!(false, "unexpected null addrs pointer");
@@ -187,6 +201,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_aaaa(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
+    let _span = he.span.clone().entered();
 
     let Some(addrs) = (unsafe { addrs.as_ref() }) else {
         debug_assert!(false, "unexpected null addrs pointer");
@@ -208,6 +223,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_dns_response_https(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
+    let _span = he.span.clone().entered();
 
     let Some(service_infos) = (unsafe { service_infos.as_ref() }) else {
         debug_assert!(false, "unexpected null service_infos pointer");
@@ -227,6 +243,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_connection_result(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
+    let _span = he.span.clone().entered();
 
     he.process_connection_result(id, status)
 }
@@ -241,6 +258,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_ech_retry(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
+    let _span = he.span.clone().entered();
 
     let Some(ech_config) = (unsafe { ech_config.as_ref() }) else {
         debug_assert!(false, "unexpected null ech_config pointer");
@@ -261,6 +279,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_output(
         debug_assert!(false, "unexpected null he pointer");
         return NS_ERROR_INVALID_ARG;
     };
+    let _span = he.span.clone().entered();
 
     let Some(ret_event) = (unsafe { ret_event.as_mut() }) else {
         debug_assert!(false, "unexpected null ret_event pointer");
@@ -284,6 +303,7 @@ pub unsafe extern "C" fn happy_eyeballs_process_output(
 pub struct HappyEyeballs {
     refcnt: AtomicRefcnt,
     inner: happy_eyeballs::HappyEyeballs,
+    span: tracing::Span,
     profiler: profiler::Profiler,
     metrics: metrics::Metrics,
 }
