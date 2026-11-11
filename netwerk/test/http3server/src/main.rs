@@ -7,7 +7,8 @@
 use base64::prelude::*;
 use neqo_bin::server::{HttpServer, Runner};
 use neqo_common::Bytes;
-use neqo_common::{event::Provider, qdebug, qerror, qinfo, qtrace, Datagram, Header};
+use neqo_common::{event::Provider, Datagram, Header};
+use tracing::{debug as qdebug, error as qerror, info as qinfo, trace as qtrace};
 use nss_rs::{generate_ech_keys, init_db, AllowZeroRtt, AntiReplay};
 use neqo_http3::{
     connect_udp::{ServerEvent as ConnectUdpServerEvent, ServerSession as ConnectUdpRequest},
