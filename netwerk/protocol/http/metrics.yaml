@@ -307,6 +307,53 @@ netwerk:
       - necko@mozilla.com
     expires: never
 
+  happy_eyeballs_h3_attempt_outcome:
+    type: labeled_counter
+    description: >
+      Happy Eyeballs: outcome of each HTTP/3 connection attempt, labeled
+      <signal>_<outcome>. Recorded once per attempt.
+
+      The signal is what indicated HTTP/3 support when the attempt started:
+      - optimistic: Nothing. An optimistic attempt
+        (network.http.http3.optimistic_quic), which sends a single QUIC
+        handshake flight only.
+      - alt_svc: An Alt-Svc entry.
+      - https_rr: An HTTPS DNS record with h3 ALPN.
+      - both: An Alt-Svc entry and an HTTPS DNS record with h3 ALPN.
+
+      The outcome:
+      - succeeded: The QUIC handshake completed.
+      - failed: The attempt failed, e.g. the server did not respond.
+      - cancelled: Another attempt won the race first, or the race ended,
+        while this one was in progress.
+
+      In addition, optimistic_opted_out is recorded once per connection race
+      in which optimistic QUIC applied, but no optimistic attempt was made
+      because the site published an Alt-Svc entry or HTTPS DNS record without
+      HTTP/3. Together, the four optimistic_* labels cover every race in which
+      optimistic QUIC applied.
+    labels:
+      - optimistic_succeeded
+      - optimistic_failed
+      - optimistic_cancelled
+      - optimistic_opted_out
+      - alt_svc_succeeded
+      - alt_svc_failed
+      - alt_svc_cancelled
+      - https_rr_succeeded
+      - https_rr_failed
+      - https_rr_cancelled
+      - both_succeeded
+      - both_failed
+      - both_cancelled
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1914201
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1914201
+    notification_emails:
+      - necko@mozilla.com
+    expires: never
+
   happy_eyeballs_time_to_first_attempt:
     type: custom_distribution
     description: >

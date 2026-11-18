@@ -1845,6 +1845,7 @@ networking:
       - UnknownFrameType
       - VersionNegotiation
       - WrongRole
+      - NoHandshakeResponse
 
   http_3_max_consecutive_ptos:
     type: custom_distribution

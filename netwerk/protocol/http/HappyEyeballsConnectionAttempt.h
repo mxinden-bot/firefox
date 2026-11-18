@@ -296,7 +296,7 @@ class HappyEyeballsConnectionAttempt final : public ConnectionAttempt,
   void CancelConnection(uint64_t aId);
   nsresult EstablishUDPConnection(NetAddr aAddr, uint16_t aPort,
                                   nsTArray<uint8_t>&& aEchConfig, uint64_t aId,
-                                  bool aIsEchRetry);
+                                  bool aIsEchRetry, bool aOptimistic);
 
   nsresult CheckLNA(nsISocketTransport* aTransport);
   nsresult CheckLNAForAddr(const NetAddr& aAddr);

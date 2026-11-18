@@ -402,6 +402,7 @@ impl NeqoHttp3Conn {
         fast_pto: u32,
         pmtud_enabled: bool,
         pacing_enabled: bool,
+        single_handshake_flight: bool,
         socket: Option<i64>,
     ) -> Result<RefPtr<Self>, nsresult> {
         // Nss init.
@@ -527,7 +528,8 @@ impl NeqoHttp3Conn {
             .pacing(pacing_enabled)
             .spurious_recovery(spurious_recovery)
             .abe(static_prefs::pref!("network.http.http3.abe"))
-            .hystart_css_baseline(css_baseline);
+            .hystart_css_baseline(css_baseline)
+            .single_handshake_flight(single_handshake_flight);
 
         // 0 means "use neqo's spec-compliant default PTO scaling".
         if fast_pto > 0 {
@@ -1125,6 +1127,7 @@ pub extern "C" fn neqo_http3conn_new(
     fast_pto: u32,
     socket: i64,
     pmtud_enabled: bool,
+    single_handshake_flight: bool,
     result: &mut *const NeqoHttp3Conn,
 ) -> nsresult {
     *result = ptr::null_mut();
@@ -1145,6 +1148,7 @@ pub extern "C" fn neqo_http3conn_new(
         fast_pto,
         pmtud_enabled,
         true,
+        single_handshake_flight,
         Some(socket),
     ) {
         Ok(http3_conn) => {
@@ -1172,6 +1176,7 @@ pub extern "C" fn neqo_http3conn_new_use_nspr_for_io(
     idle_timeout: u32,
     fast_pto: u32,
     pacing_enabled: bool,
+    single_handshake_flight: bool,
     result: &mut *const NeqoHttp3Conn,
 ) -> nsresult {
     *result = ptr::null_mut();
@@ -1192,6 +1197,7 @@ pub extern "C" fn neqo_http3conn_new_use_nspr_for_io(
         fast_pto,
         false,
         pacing_enabled,
+        single_handshake_flight,
         None,
     ) {
         Ok(http3_conn) => {
@@ -1846,6 +1852,7 @@ impl From<TransportError> for CloseError {
             TransportError::DisabledVersion => Self::TransportInternalErrorOther(29),
             TransportError::UnknownTransportParameter => Self::TransportInternalErrorOther(30),
             TransportError::TooManyPtos => Self::TransportInternalErrorOther(31),
+            TransportError::NoHandshakeResponse => Self::TransportInternalErrorOther(32),
         }
     }
 }
@@ -1905,6 +1912,7 @@ const fn transport_error_to_glean_label(error: &TransportError) -> &'static str 
         TransportError::WrongRole => "WrongRole",
         TransportError::UnknownTransportParameter => "UnknownTransportParameter",
         TransportError::TooManyPtos => "TooManyPtos",
+        TransportError::NoHandshakeResponse => "NoHandshakeResponse",
     }
 }
 

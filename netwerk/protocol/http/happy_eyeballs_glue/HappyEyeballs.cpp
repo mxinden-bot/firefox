@@ -13,10 +13,11 @@ nsresult HappyEyeballs::Init(HappyEyeballs** aHappyEyeballs,
                              const nsTArray<happy_eyeballs::AltSvc>* aAltSvc,
                              happy_eyeballs::IpPreference aPref,
                              happy_eyeballs::HttpVersions aHttpVersions,
-                             happy_eyeballs::ResolutionMode aResolution) {
+                             happy_eyeballs::ResolutionMode aResolution,
+                             bool aOptimisticQuic) {
   return happy_eyeballs::happy_eyeballs_create(
       (const HappyEyeballs**)aHappyEyeballs, &aOrigin, aPort, aAltSvc, aPref,
-      aHttpVersions, aResolution);
+      aHttpVersions, aResolution, aOptimisticQuic);
 }
 
 }  // namespace net

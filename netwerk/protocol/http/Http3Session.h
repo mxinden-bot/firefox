@@ -213,7 +213,8 @@ class Http3Session final : public Http3SessionBase,
   nsresult Init(nsHttpConnectionInfo* aConnInfo, nsINetAddr* selfAddr,
                 nsINetAddr* peerAddr, HttpConnectionUDP* udpConn,
                 uint32_t aProviderFlags, nsIInterfaceRequestor* callbacks,
-                nsIUDPSocket* socket, bool aIsTunnel = false);
+                nsIUDPSocket* socket, bool aIsTunnel = false,
+                bool aSingleHandshakeFlight = false);
 
   // Re-key this session's connection info after
   // nsHttpConnectionMgr::HandOffHttp3OnlyConnection has moved the owning
@@ -547,6 +548,8 @@ class Http3Session final : public Http3SessionBase,
   bool mHasWebTransportSession = false;
   // When true, we don't add this connection info into the Http/3 excluded list.
   bool mDontExclude = false;
+  // Optimistic attempt: neqo sends a single handshake flight only.
+  bool mSingleHandshakeFlight = false;
   // True if any stream accepted Do0RTT() during the ZERORTT phase.  When the
   // session closes with mBeforeConnectedError we suppress ExcludeHttp3: the
   // PSK ticket is single-use so the retry does a full handshake and the H3

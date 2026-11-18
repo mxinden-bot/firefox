@@ -109,6 +109,7 @@ struct ConnectionMarker {
     http_version: String,
     ip_version: IpVersion,
     has_ech: bool,
+    optimistic: bool,
     address: String,
 }
 
@@ -119,13 +120,14 @@ impl ProfilerMarker for ConnectionMarker {
 
     fn marker_type_display() -> MarkerSchema {
         let mut schema = MarkerSchema::new(&[Location::MarkerChart, Location::MarkerTable]);
-        schema.set_all_labels("{marker.data.http_version} {marker.data.ip_version} ECH={marker.data.has_ech} {marker.data.outcome}");
+        schema.set_all_labels("{marker.data.http_version} {marker.data.ip_version} ECH={marker.data.has_ech} Optimistic={marker.data.optimistic} {marker.data.outcome}");
         schema.add_key_label_format("origin", "Origin", Format::SanitizedString);
         schema.add_key_label_format("outcome", "Outcome", Format::UniqueString);
         schema.add_key_label_format("http_version", "HTTP Version", Format::UniqueString);
         schema.add_key_label_format("ip_version", "IP Version", Format::UniqueString);
         schema.add_key_label_format("address", "Address", Format::SanitizedString);
         schema.add_key_label_format("has_ech", "ECH", Format::String);
+        schema.add_key_label_format("optimistic", "Optimistic", Format::String);
         schema.add_key_label_format("flow", "Flow", Format::Flow);
         schema
     }
@@ -137,6 +139,7 @@ impl ProfilerMarker for ConnectionMarker {
         json_writer.unique_string_property("ip_version", self.ip_version.as_str());
         json_writer.string_property("address", &self.address);
         json_writer.bool_property("has_ech", self.has_ech);
+        json_writer.bool_property("optimistic", self.optimistic);
         json_writer.unique_string_property("flow", unsafe {
             std::str::from_utf8_unchecked(&self.flow.to_hex())
         });
@@ -151,6 +154,7 @@ struct LifetimeMarker {
     alt_svc: String,
     http_versions: String,
     ech_enabled: bool,
+    optimistic_quic: bool,
 }
 
 impl ProfilerMarker for LifetimeMarker {
@@ -166,6 +170,7 @@ impl ProfilerMarker for LifetimeMarker {
         schema.add_key_label_format("alt_svc", "Alt-Svc", Format::UniqueString);
         schema.add_key_label_format("http_versions", "HTTP Versions", Format::UniqueString);
         schema.add_key_label_format("ech_enabled", "ECH Enabled", Format::String);
+        schema.add_key_label_format("optimistic_quic", "Optimistic QUIC", Format::String);
         schema.add_key_label_format("flow", "Flow", Format::Flow);
         schema
     }
@@ -176,6 +181,7 @@ impl ProfilerMarker for LifetimeMarker {
         json_writer.unique_string_property("alt_svc", &self.alt_svc);
         json_writer.unique_string_property("http_versions", &self.http_versions);
         json_writer.bool_property("ech_enabled", self.ech_enabled);
+        json_writer.bool_property("optimistic_quic", self.optimistic_quic);
         json_writer.unique_string_property("flow", unsafe {
             std::str::from_utf8_unchecked(&self.flow.to_hex())
         });
@@ -193,6 +199,7 @@ struct ConnInfo {
     http_version: happy_eyeballs::ConnectionAttemptHttpVersions,
     ip_version: IpVersion,
     has_ech: bool,
+    optimistic: bool,
     address: String,
 }
 
@@ -204,6 +211,7 @@ pub(crate) struct Profiler {
     alt_svc: String,
     http_versions: String,
     ech_enabled: bool,
+    optimistic_quic: bool,
     dns_infos: HashMap<happy_eyeballs::Id, DnsInfo>,
     conn_infos: HashMap<happy_eyeballs::Id, ConnInfo>,
 }
@@ -223,6 +231,7 @@ impl Profiler {
                 alt_svc: String::new(),
                 http_versions: String::new(),
                 ech_enabled: false,
+                optimistic_quic: false,
                 dns_infos: HashMap::new(),
                 conn_infos: HashMap::new(),
             };
@@ -274,6 +283,7 @@ impl Profiler {
             alt_svc,
             http_versions,
             ech_enabled: network_config.ech,
+            optimistic_quic: network_config.optimistic_quic,
             dns_infos: HashMap::new(),
             conn_infos: HashMap::new(),
         }
@@ -393,6 +403,7 @@ impl Profiler {
         &mut self,
         id: happy_eyeballs::Id,
         endpoint: &happy_eyeballs::Endpoint,
+        optimistic: bool,
     ) {
         if !gecko_profiler::is_active() {
             return;
@@ -407,6 +418,7 @@ impl Profiler {
                 http_version: endpoint.http_version,
                 ip_version: address.into(),
                 has_ech: endpoint.ech_config.is_some(),
+                optimistic,
                 address: address.to_string(),
             },
         );
@@ -443,6 +455,7 @@ impl Profiler {
                 http_version: format!("{:?}", info.http_version),
                 ip_version: info.ip_version,
                 has_ech: info.has_ech,
+                optimistic: info.optimistic,
                 address: info.address,
             },
         );
@@ -490,6 +503,7 @@ impl Drop for Profiler {
                     http_version: format!("{:?}", info.http_version),
                     ip_version: info.ip_version,
                     has_ech: info.has_ech,
+                    optimistic: info.optimistic,
                     address: info.address,
                 },
             );
@@ -509,6 +523,7 @@ impl Drop for Profiler {
                 alt_svc: std::mem::take(&mut self.alt_svc),
                 http_versions: std::mem::take(&mut self.http_versions),
                 ech_enabled: self.ech_enabled,
+                optimistic_quic: self.optimistic_quic,
             },
         );
     }

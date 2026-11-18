@@ -302,8 +302,14 @@ nsresult HappyEyeballsConnectionAttempt::CreateHappyEyeballs(
                                &noAltSvc, ipPref, httpVersions, resolution);
   }
 
+  // Optimistic HTTP/3 only to the origin itself, without a proxy, and only for
+  // "https" URIs: HTTP/3 needs TLS (RFC 9114, Section 3.1.2).
+  const bool optimisticQuic =
+      StaticPrefs::network_http_http3_optimistic_quic() && httpVersions.h3 &&
+      mConnInfo->EndToEndSSL() && !mConnInfo->ProxyInfo();
   return HappyEyeballs::Init(getter_AddRefs(mHappyEyeballs), mHost, originPort,
-                             &altSvcArray, ipPref, httpVersions, resolution);
+                             &altSvcArray, ipPref, httpVersions, resolution,
+                             optimisticQuic);
 }
 
 nsresult HappyEyeballsConnectionAttempt::Init(ConnectionEntry* ent) {
@@ -660,10 +666,11 @@ nsresult HappyEyeballsConnectionAttempt::ProcessHappyEyeballsOutput() {
 
       case happy_eyeballs::Output::Tag::AttemptConnection: {
         LOG(("HappyEyeballsEvent::Tag::AttemptConnection id=%" PRIu64
-             " protocol=%d port=%d ",
+             " protocol=%d port=%d optimistic=%d",
              event.attempt_connection.id,
              static_cast<uint32_t>(event.attempt_connection.http_version),
-             event.attempt_connection.port));
+             event.attempt_connection.port,
+             event.attempt_connection.optimistic));
 
         if (mFirstConnectionStart.IsNull()) {
           mFirstConnectionStart = TimeStamp::Now();
@@ -692,7 +699,8 @@ nsresult HappyEyeballsConnectionAttempt::ProcessHappyEyeballsOutput() {
             happy_eyeballs::ConnectionAttemptHttpVersions::H3) {
           EstablishUDPConnection(res.unwrap(), event.attempt_connection.port,
                                  std::move(echConfig),
-                                 event.attempt_connection.id, isEchRetry);
+                                 event.attempt_connection.id, isEchRetry,
+                                 event.attempt_connection.optimistic);
         } else {
           EstablishTCPConnection(
               AsVariant(res.unwrap()), event.attempt_connection.port,
@@ -1303,7 +1311,7 @@ nsresult HappyEyeballsConnectionAttempt::EstablishTCPConnection(
 
 nsresult HappyEyeballsConnectionAttempt::EstablishUDPConnection(
     NetAddr aAddr, uint16_t aPort, nsTArray<uint8_t>&& aEchConfig, uint64_t aId,
-    bool aIsEchRetry) {
+    bool aIsEchRetry, bool aOptimistic) {
   RefPtr<nsHttpConnectionInfo> info = mConnInfo->CloneAndAdoptPortAndAlpn(
       aPort, happy_eyeballs::ConnectionAttemptHttpVersions::H3);
   if (!aEchConfig.IsEmpty()) {
@@ -1315,8 +1323,9 @@ nsresult HappyEyeballsConnectionAttempt::EstablishUDPConnection(
   }
   NotifyConnectionActivity(info, NS_HTTP_ACTIVITY_SUBTYPE_CONNECTION_CREATED);
   // A failed racing attempt must not clear the origin's alt-svc mappings.
-  uint32_t caps =
-      mCaps | NS_HTTP_ERROR_SOFTLY | (aIsEchRetry ? NS_HTTP_IS_RETRY : 0);
+  uint32_t caps = mCaps | NS_HTTP_ERROR_SOFTLY |
+                  (aIsEchRetry ? NS_HTTP_IS_RETRY : 0) |
+                  (aOptimistic ? NS_HTTP_OPTIMISTIC_HTTP3 : 0);
   RefPtr<ConnectionEstablisher> establisher = mEstablisherFactory->Create(
       ConnectionEstablisherType::UDP, info, AsVariant(aAddr), caps,
       mSpeculative, mAllow1918);

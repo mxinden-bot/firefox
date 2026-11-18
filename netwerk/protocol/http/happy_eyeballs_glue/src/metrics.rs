@@ -51,12 +51,21 @@ pub(crate) struct Metrics {
     // The resolver type (DoH/TRR vs native) that produced the HTTPS record.
     is_trr: bool,
     outcome: Option<Outcome>,
+    // In-progress HTTP/3 attempts, with the signal of HTTP/3 support known
+    // when each started.
+    h3_attempts: HashMap<happy_eyeballs::Id, H3Signal>,
+    // Whether optimistic QUIC applies to this race, whether an alt-svc entry
+    // was given, and whether an optimistic attempt was made.
+    optimistic_quic: bool,
+    alt_svc: bool,
+    optimistic_attempted: bool,
 }
 
 impl Metrics {
     pub(crate) fn new(
         alt_svc: &[happy_eyeballs::AltSvc],
         preferred: happy_eyeballs::DnsRecordType,
+        optimistic_quic: bool,
     ) -> Self {
         let alt_svc_h3 = alt_svc
             .iter()
@@ -83,6 +92,10 @@ impl Metrics {
             https_rr_ipv6hint: false,
             is_trr: false,
             outcome: None,
+            h3_attempts: HashMap::new(),
+            optimistic_quic,
+            alt_svc: !alt_svc.is_empty(),
+            optimistic_attempted: false,
         }
     }
 
@@ -158,8 +171,23 @@ impl Metrics {
         self.dns_response(id, !infos.is_empty(), is_trr);
     }
 
-    pub(crate) fn connection_attempt_started(&mut self, id: happy_eyeballs::Id) {
+    pub(crate) fn connection_attempt_started(
+        &mut self,
+        id: happy_eyeballs::Id,
+        http_version: happy_eyeballs::ConnectionAttemptHttpVersions,
+        optimistic: bool,
+    ) {
         self.attempt_count += 1;
+        if http_version == happy_eyeballs::ConnectionAttemptHttpVersions::H3 {
+            self.optimistic_attempted |= optimistic;
+            let signal = match (optimistic, self.alt_svc_h3, self.https_rr_h3) {
+                (true, _, _) | (false, false, false) => H3Signal::Optimistic,
+                (false, true, false) => H3Signal::AltSvc,
+                (false, false, true) => H3Signal::HttpsRr,
+                (false, true, true) => H3Signal::Both,
+            };
+            self.h3_attempts.insert(id, signal);
+        }
 
         if !self.first_attempt_dispatched {
             self.first_attempt_dispatched = true;
@@ -211,7 +239,21 @@ impl Metrics {
             .accumulate_single_sample_signed(wait_ms);
     }
 
+    pub(crate) fn connection_result(&mut self, id: happy_eyeballs::Id, succeeded: bool) {
+        if let Some(signal) = self.h3_attempts.remove(&id) {
+            let outcome = if succeeded {
+                H3Outcome::Succeeded
+            } else {
+                H3Outcome::Failed
+            };
+            record_h3_attempt_outcome(signal, outcome);
+        }
+    }
+
     pub(crate) fn connection_cancelled(&mut self, id: happy_eyeballs::Id) {
+        if let Some(signal) = self.h3_attempts.remove(&id) {
+            record_h3_attempt_outcome(signal, H3Outcome::Cancelled);
+        }
         if self.conn_infos.remove(&id).is_some() {
             self.cancelled_count += 1;
         }
@@ -235,6 +277,23 @@ impl Metrics {
 
 impl Drop for Metrics {
     fn drop(&mut self) {
+        for (_, signal) in self.h3_attempts.drain() {
+            record_h3_attempt_outcome(signal, H3Outcome::Cancelled);
+        }
+
+        // The site opted out: optimistic QUIC applied, but an alt-svc entry or
+        // HTTPS record without HTTP/3 prevented the optimistic attempt.
+        if self.optimistic_quic
+            && !self.optimistic_attempted
+            && (self.alt_svc || self.https_record_received)
+            && !self.alt_svc_h3
+            && !self.https_rr_h3
+        {
+            glean::happy_eyeballs_h3_attempt_outcome
+                .get("optimistic_opted_out")
+                .add(1);
+        }
+
         let Some(ref outcome) = self.outcome else {
             return;
         };
@@ -312,6 +371,40 @@ impl Drop for Metrics {
             }
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum H3Signal {
+    Optimistic,
+    AltSvc,
+    HttpsRr,
+    Both,
+}
+
+#[derive(Clone, Copy)]
+enum H3Outcome {
+    Succeeded,
+    Failed,
+    Cancelled,
+}
+
+fn record_h3_attempt_outcome(signal: H3Signal, outcome: H3Outcome) {
+    use H3Outcome::{Cancelled, Failed, Succeeded};
+    let label = match (signal, outcome) {
+        (H3Signal::Optimistic, Succeeded) => "optimistic_succeeded",
+        (H3Signal::Optimistic, Failed) => "optimistic_failed",
+        (H3Signal::Optimistic, Cancelled) => "optimistic_cancelled",
+        (H3Signal::AltSvc, Succeeded) => "alt_svc_succeeded",
+        (H3Signal::AltSvc, Failed) => "alt_svc_failed",
+        (H3Signal::AltSvc, Cancelled) => "alt_svc_cancelled",
+        (H3Signal::HttpsRr, Succeeded) => "https_rr_succeeded",
+        (H3Signal::HttpsRr, Failed) => "https_rr_failed",
+        (H3Signal::HttpsRr, Cancelled) => "https_rr_cancelled",
+        (H3Signal::Both, Succeeded) => "both_succeeded",
+        (H3Signal::Both, Failed) => "both_failed",
+        (H3Signal::Both, Cancelled) => "both_cancelled",
+    };
+    glean::happy_eyeballs_h3_attempt_outcome.get(label).add(1);
 }
 
 fn dns_record_type_label(rt: happy_eyeballs::DnsRecordType) -> &'static str {

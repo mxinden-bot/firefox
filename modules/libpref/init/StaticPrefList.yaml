@@ -17338,6 +17338,17 @@
   mirror: always
   rust: true
 
+# Whether Happy Eyeballs optimistically attempts HTTP/3 alongside TCP when
+# nothing (no Alt-Svc, no HTTPS DNS record) signals that the origin supports
+# it. The optimistic attempt sends a single QUIC handshake flight and gives up
+# without retransmitting if the server does not respond.
+# TODO: Flip to false before landing.
+- name: network.http.http3.optimistic_quic
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+  rust: true
+
 # Whether to send an mlkem768x25519 key share in HTTP/3 TLS handshakes.
 # Has no effect unless security.tls.enable_kyber is true.
 - name: network.http.http3.enable_kyber

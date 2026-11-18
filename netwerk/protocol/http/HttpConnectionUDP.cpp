@@ -377,7 +377,8 @@ nsresult HttpConnectionUDP::InitCommon(nsIUDPSocket* aSocket,
   mPeerAddr = new nsNetAddr(&aPeerAddr);
   mHttp3Session = new Http3Session();
   rv = mHttp3Session->Init(mConnInfo, mSelfAddr, mPeerAddr, this, providerFlags,
-                           callbacks, mSocket, isInTunnel);
+                           callbacks, mSocket, isInTunnel,
+                           (caps & NS_HTTP_OPTIMISTIC_HTTP3) != 0);
   if (NS_FAILED(rv)) {
     LOG(
         ("HttpConnectionUDP::InitCommon Http3Session::Init failed [this=%p "
