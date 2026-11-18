@@ -51,6 +51,8 @@ pub(crate) struct Metrics {
     // The resolver type (DoH/TRR vs native) that produced the HTTPS record.
     is_trr: bool,
     outcome: Option<Outcome>,
+    // The optimistic HTTP/3 attempt, while it is in progress.
+    optimistic: Option<happy_eyeballs::Id>,
 }
 
 impl Metrics {
@@ -83,6 +85,7 @@ impl Metrics {
             https_rr_ipv6hint: false,
             is_trr: false,
             outcome: None,
+            optimistic: None,
         }
     }
 
@@ -158,8 +161,11 @@ impl Metrics {
         self.dns_response(id, !infos.is_empty(), is_trr);
     }
 
-    pub(crate) fn connection_attempt_started(&mut self, id: happy_eyeballs::Id) {
+    pub(crate) fn connection_attempt_started(&mut self, id: happy_eyeballs::Id, optimistic: bool) {
         self.attempt_count += 1;
+        if optimistic {
+            self.optimistic = Some(id);
+        }
 
         if !self.first_attempt_dispatched {
             self.first_attempt_dispatched = true;
@@ -211,7 +217,21 @@ impl Metrics {
             .accumulate_single_sample_signed(wait_ms);
     }
 
+    pub(crate) fn connection_result(&mut self, id: happy_eyeballs::Id, succeeded: bool) {
+        if self.optimistic == Some(id) {
+            self.optimistic = None;
+            let label = if succeeded { "succeeded" } else { "failed" };
+            glean::happy_eyeballs_optimistic_quic.get(label).add(1);
+        }
+    }
+
     pub(crate) fn connection_cancelled(&mut self, id: happy_eyeballs::Id) {
+        if self.optimistic == Some(id) {
+            self.optimistic = None;
+            glean::happy_eyeballs_optimistic_quic
+                .get("cancelled")
+                .add(1);
+        }
         if self.conn_infos.remove(&id).is_some() {
             self.cancelled_count += 1;
         }
@@ -235,6 +255,12 @@ impl Metrics {
 
 impl Drop for Metrics {
     fn drop(&mut self) {
+        if self.optimistic.take().is_some() {
+            glean::happy_eyeballs_optimistic_quic
+                .get("cancelled")
+                .add(1);
+        }
+
         let Some(ref outcome) = self.outcome else {
             return;
         };

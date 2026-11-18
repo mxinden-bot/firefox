@@ -66,6 +66,10 @@ name = "optimistic_dns"
 path = "tests/optimistic_dns.rs"
 
 [[test]]
+name = "optimistic_quic"
+path = "tests/optimistic_quic.rs"
+
+[[test]]
 name = "type_impls"
 path = "tests/type_impls.rs"
 

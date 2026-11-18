@@ -85,11 +85,6 @@ git = "https://github.com/mozilla/glean"
 tag = "v71.0.0"
 replace-with = "vendored-sources"
 
-[source."git+https://github.com/mozilla/happy-eyeballs?tag=v2.0.0"]
-git = "https://github.com/mozilla/happy-eyeballs"
-tag = "v2.0.0"
-replace-with = "vendored-sources"
-
 [source."git+https://github.com/mozilla/memtest?rev=ad681ba425beb0aeba95f03e671432b4be932174"]
 git = "https://github.com/mozilla/memtest"
 rev = "ad681ba425beb0aeba95f03e671432b4be932174"
@@ -110,13 +105,18 @@ git = "https://github.com/mozilla/mp4parse-rust"
 rev = "f0c80783227a1fb46f34cb04e10607045eac4297"
 replace-with = "vendored-sources"
 
-[source."git+https://github.com/mozilla/neqo?tag=v0.35.0"]
-git = "https://github.com/mozilla/neqo"
-tag = "v0.35.0"
-replace-with = "vendored-sources"
-
 [source."git+https://github.com/mozilla/nss-rs"]
 git = "https://github.com/mozilla/nss-rs"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/mxinden-bot/happy-eyeballs?rev=ae5ffee4b5cfa5ba8f151271810dc6fa32caac75"]
+git = "https://github.com/mxinden-bot/happy-eyeballs"
+rev = "ae5ffee4b5cfa5ba8f151271810dc6fa32caac75"
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/mxinden-bot/neqo?rev=599b81eae5fcb91939c2b78302d93e3340f30779"]
+git = "https://github.com/mxinden-bot/neqo"
+rev = "599b81eae5fcb91939c2b78302d93e3340f30779"
 replace-with = "vendored-sources"
 
 [source."git+https://github.com/rust-minidump/minidump-writer.git?rev=d5ec275ce1276947f09f205a581fe2b3cf90178f"]

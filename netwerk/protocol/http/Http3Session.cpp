@@ -100,8 +100,18 @@ nsresult Http3Session::Init(nsHttpConnectionInfo* aConnInfo,
                             nsINetAddr* aSelfAddr, nsINetAddr* aPeerAddr,
                             HttpConnectionUDP* udpConn, uint32_t aProviderFlags,
                             nsIInterfaceRequestor* callbacks,
-                            nsIUDPSocket* socket, bool aIsTunnel) {
+                            nsIUDPSocket* socket, bool aIsTunnel,
+                            bool aSingleFlight) {
   LOG3(("Http3Session::Init %p", this));
+
+  // An optimistic attempt is made without any signal of HTTP/3 support, so its
+  // failure must not exclude HTTP/3 for the origin.
+  mSingleFlight = aSingleFlight;
+  if (mSingleFlight) {
+    LOG3(("Http3Session::Init optimistic, single handshake flight [this=%p]",
+          this));
+    mDontExclude = true;
+  }
 
   MOZ_ASSERT(OnSocketThread(), "not on socket thread");
   MOZ_ASSERT(udpConn);
@@ -191,7 +201,8 @@ nsresult Http3Session::Init(nsHttpConnectionInfo* aConnInfo,
         StaticPrefs::network_http_http3_max_stream_data(),
         StaticPrefs::network_http_http3_version_negotiation_enabled(),
         mConnInfo->GetWebTransport(), gHttpHandler->Http3QlogDir(), idleTimeout,
-        fastPto, pacingEnabled, getter_AddRefs(mHttp3Connection));
+        fastPto, pacingEnabled, aSingleFlight,
+        getter_AddRefs(mHttp3Connection));
   } else {
     rv = NeqoHttp3Conn::Init(
         mSocketControl->GetHostName(), alpn, selfAddr, peerAddr,
@@ -201,7 +212,7 @@ nsresult Http3Session::Init(nsHttpConnectionInfo* aConnInfo,
         StaticPrefs::network_http_http3_max_stream_data(),
         StaticPrefs::network_http_http3_version_negotiation_enabled(),
         mConnInfo->GetWebTransport(), gHttpHandler->Http3QlogDir(), idleTimeout,
-        fastPto, socket->GetFileDescriptor(), isOuterConnection,
+        fastPto, socket->GetFileDescriptor(), isOuterConnection, aSingleFlight,
         getter_AddRefs(mHttp3Connection));
   }
   if (NS_FAILED(rv)) {
@@ -362,6 +373,11 @@ void Http3Session::Shutdown() {
 
   bool isEchRetry = mError == mozilla::psm::GetXPCOMFromNSSError(
                                   SSL_ERROR_ECH_RETRY_WITH_ECH);
+  if (mSingleFlight) {
+    LOG(("Http3Session::Shutdown optimistic attempt beforeConnected=%d "
+         "error=0x%" PRIx32 " [this=%p]",
+         mBeforeConnectedError, static_cast<uint32_t>(mError), this));
+  }
   bool isNSSError = psm::IsNSSErrorCode(-1 * NS_ERROR_GET_CODE(mError));
   bool allowToRetryWithDifferentIPFamily =
       mBeforeConnectedError &&

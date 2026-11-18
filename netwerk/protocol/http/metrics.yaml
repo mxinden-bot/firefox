@@ -307,6 +307,32 @@ netwerk:
       - necko@mozilla.com
     expires: never
 
+  happy_eyeballs_optimistic_quic:
+    type: labeled_counter
+    description: >
+      Happy Eyeballs: outcome of the optimistic HTTP/3 connection attempt, made
+      when nothing (no Alt-Svc, no HTTPS DNS record) signals that the origin
+      supports HTTP/3 (network.http.http3.optimistic_quic). The attempt sends a
+      single QUIC handshake flight only. Recorded once per optimistic attempt.
+
+      Labels:
+      - succeeded: The QUIC handshake completed.
+      - failed: The attempt failed, e.g. the server did not respond to the
+        single handshake flight.
+      - cancelled: Another attempt (e.g. TCP) won the race first, or the race
+        ended, while the optimistic attempt was still in progress.
+    labels:
+      - succeeded
+      - failed
+      - cancelled
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=TODO
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=TODO
+    notification_emails:
+      - necko@mozilla.com
+    expires: never
+
   happy_eyeballs_time_to_first_attempt:
     type: custom_distribution
     description: >

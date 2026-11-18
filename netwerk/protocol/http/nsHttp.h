@@ -182,6 +182,10 @@ inline bool IsHttp3(SupportedAlpnRank aRank) {
 // When set, we use HappyEyeballsConnectionAttempt to establish connection.
 #define NS_HTTP_USE_HAPPY_EYEBALLS (1 << 30)
 
+// When set, this is an optimistic HTTP/3 connection attempt, made without any
+// signal of HTTP/3 support: send a single QUIC handshake flight only.
+#define NS_HTTP_OPTIMISTIC_HTTP3 (1u << 31)
+
 #define NS_HTTP_TRR_FLAGS_FROM_MODE(x) ((static_cast<uint32_t>(x) & 3) << 19)
 
 #define NS_HTTP_TRR_MODE_FROM_FLAGS(x) \

@@ -149,6 +149,7 @@ pub unsafe extern "C" fn happy_eyeballs_create(
         connection_attempt_delay: Duration::from_millis(connection_attempt_delay_ms as u64),
         connection_attempt_delay_multiplier,
         resolution: resolution.into(),
+        optimistic_quic: static_prefs::pref!("network.http.http3.optimistic_quic"),
         ..Default::default()
     };
 
@@ -468,6 +469,8 @@ impl HappyEyeballs {
             self.metrics.connection_succeeded(id);
         }
 
+        self.metrics.connection_result(id, status == NS_OK);
+
         let result = if status == NS_OK {
             happy_eyeballs::ConnectionResult::Success
         } else {
@@ -486,6 +489,7 @@ impl HappyEyeballs {
     fn process_ech_retry(&mut self, id: u64, ech_config: &ThinVec<u8>) -> nsresult {
         let id: happy_eyeballs::Id = id.into();
         self.profiler.connection_result(id, false);
+        self.metrics.connection_result(id, false);
 
         let result = happy_eyeballs::ConnectionResult::EchRetry(happy_eyeballs::EchConfig::new(
             ech_config.to_vec(),
@@ -534,9 +538,11 @@ impl HappyEyeballs {
                 id,
                 endpoint,
                 is_ech_retry,
+                optimistic,
             }) => {
-                self.profiler.connection_attempt_started(id, &endpoint);
-                self.metrics.connection_attempt_started(id);
+                self.profiler
+                    .connection_attempt_started(id, &endpoint, optimistic);
+                self.metrics.connection_attempt_started(id, optimistic);
                 if let Some(ref ech) = endpoint.ech_config {
                     ech_config.extend_from_slice(ech.as_ref());
                 }
@@ -548,6 +554,7 @@ impl HappyEyeballs {
                             addr: (*address).into(),
                             port: address.port(),
                             is_ech_retry,
+                            optimistic,
                         };
                     }
                     happy_eyeballs::EndpointTarget::Name { host, port } => {
@@ -745,6 +752,9 @@ pub enum Output {
         addr: IpAddr,
         port: u16,
         is_ech_retry: bool,
+        /// An optimistic HTTP/3 attempt, made without any signal of HTTP/3
+        /// support: send a single QUIC handshake flight only.
+        optimistic: bool,
     },
     /// A by-name connection attempt (`EndpointTarget::Name`): there is no
     /// client-side address because resolution is left to a downstream party
